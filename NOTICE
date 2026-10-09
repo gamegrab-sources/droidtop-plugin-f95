@@ -1,0 +1,19 @@
+droidtop-plugin-f95
+Copyright (C) 2026 the droidtop-plugin-f95 contributors
+Licensed under the GNU General Public License version 3 (see LICENSE).
+
+This plugin derives from two GPL-3.0 projects and adapts their logic:
+
+- F95Checker, https://github.com/WillyJL/F95Checker
+  Copyright the F95Checker contributors. GNU GPL version 3.
+
+- f95seeker, https://github.com/bi0shacker001/f95seeker
+  Copyright the f95seeker contributors. GNU GPL version 3.
+  f95seeker itself adapts F95Checker.
+
+It also carries the F95zone thread parsing droidtop
+(https://github.com/Droidtop/droidtop) had in its core before F95 support
+moved into this plugin.
+
+This is an unofficial plugin. It is not part of droidtop and is not
+affiliated with or endorsed by F95zone, F95Checker or droidtop.

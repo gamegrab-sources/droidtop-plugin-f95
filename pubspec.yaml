@@ -1,0 +1,22 @@
+name: droidtop_plugin_f95
+description: >
+  The F95zone source for droidtop, an unofficial flutter_embed plugin:
+  thread links and update checks for your games. Built by
+  droidtop_plugin/build.sh.
+publish_to: 'none'
+version: 0.1.0
+
+environment:
+  sdk: '>=3.10.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: false

@@ -1,0 +1,6 @@
+.dart_tool/
+.packages
+build/
+droidtop_plugin/build/
+*.droidplugin.tar.xz
+pubspec.lock

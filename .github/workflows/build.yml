@@ -1,0 +1,127 @@
+name: Build
+
+# Every push and pull request: analyze, unit tests, and the plugin bundle for
+# both ABIs. A push to main also signs the bundle with this repository's own
+# key and publishes it as a permanent release (one per working build), when
+# the key is set. The key is never derived from droidtop's plugin master.
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  FLUTTER_URL: https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.47.5-stable.tar.xz
+  FLUTTER_SHA256: 2132e990f236f8d22e7c6314b29a191a95b10d7cbcfec9b4e2e303d996652cbb
+
+jobs:
+  check:
+    name: Analyze and test
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: The declared version moves with the code
+        # droidtop's rule (Droidtop/tracker#126): a revision whose plugin
+        # sources changed carries a new declared version.
+        run: |
+          if git rev-parse -q --verify HEAD~1 >/dev/null; then
+            if git diff --quiet HEAD~1 HEAD -- lib pubspec.yaml droidtop_plugin; then
+              echo "no plugin source changed"
+            else
+              old="$(git show HEAD~1:droidtop_plugin/manifest.template.json 2>/dev/null | python3 -c 'import json,sys; print(json.load(sys.stdin)["version"])' || true)"
+              new="$(python3 -c 'import json; print(json.load(open("droidtop_plugin/manifest.template.json"))["version"])')"
+              if [ -n "$old" ] && [ "$old" = "$new" ]; then
+                echo "::error::plugin sources changed but droidtop_plugin/manifest.template.json still declares $new; bump it (and pubspec.yaml, CHANGELOG.md)"
+                exit 1
+              fi
+              echo "declared version $old -> $new"
+            fi
+          fi
+          test "$(python3 -c 'import json; print(json.load(open("droidtop_plugin/manifest.template.json"))["version"])')" = "$(sed -n 's/^version: //p' pubspec.yaml)" \
+            || { echo "::error::pubspec.yaml and manifest.template.json declare different versions"; exit 1; }
+
+      - name: Install the pinned Flutter SDK
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/flutter.tar.xz" "$FLUTTER_URL"
+          echo "$FLUTTER_SHA256  $RUNNER_TEMP/flutter.tar.xz" | sha256sum -c -
+          tar -C "$RUNNER_TEMP" -xf "$RUNNER_TEMP/flutter.tar.xz"
+          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+
+      - run: flutter config --no-analytics >/dev/null && flutter pub get
+      - run: flutter analyze
+      - run: flutter test
+
+  bundle:
+    name: Plugin bundle
+    needs: check
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install the pinned Flutter SDK
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/flutter.tar.xz" "$FLUTTER_URL"
+          echo "$FLUTTER_SHA256  $RUNNER_TEMP/flutter.tar.xz" | sha256sum -c -
+          tar -C "$RUNNER_TEMP" -xf "$RUNNER_TEMP/flutter.tar.xz"
+          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+
+      - name: Build the bundle (unsigned payload and manifest)
+        env:
+          DROIDTOP_PLUGIN_BUILD: ${{ github.run_number }}
+        run: |
+          flutter config --no-analytics >/dev/null
+          ./droidtop_plugin/build.sh
+
+      - name: Upload the unsigned payload
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-bundle
+          path: |
+            droidtop_plugin/build/manifest.json
+            droidtop_plugin/build/payload
+          if-no-files-found: error
+
+      - name: Sign
+        id: sign
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          KEY_PEM: ${{ secrets.PLUGIN_SIGNING_KEY }}
+        run: |
+          if [ -z "$KEY_PEM" ]; then
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            echo "PLUGIN_SIGNING_KEY is not set on this repository: no signed bundle, no release." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          test -f droidtop-plugin-key.json || { echo "::error::the key is set but droidtop-plugin-key.json is not committed at the repository root"; exit 1; }
+          KEYFILE="$RUNNER_TEMP/plugin-signing-key.pem"
+          umask 077
+          printf '%s' "$KEY_PEM" > "$KEYFILE"
+          PLUGIN_SIGNING_KEY_FILE="$KEYFILE" ./droidtop_plugin/sign.sh
+          rm -f -- "$KEYFILE"
+          echo "signed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Publish the release
+        # One permanent release per working build of main: tag
+        # v<declared>-<run>, carrying the signed bundle, its manifest and the
+        # public key file (the catalog lists plugins from these).
+        if: steps.sign.outputs.signed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          id="$(python3 -c "import json; print(json.load(open('droidtop_plugin/build/manifest.json'))['id'])")"
+          version="$(python3 -c "import json; print(json.load(open('droidtop_plugin/build/manifest.json'))['version'])")"
+          cp droidtop_plugin/build/manifest.json "$id.manifest.json"
+          gh release create "v$version" "$id.droidplugin.tar.xz" "$id.manifest.json" droidtop-plugin-key.json \
+            --repo "${{ github.repository }}" \
+            --target "${{ github.sha }}" \
+            --title "F95zone $version" \
+            --notes "Signed droidtop plugin bundle built from ${{ github.sha }}. Unofficial (gamegrab-sources): trust droidtop-plugin-key.json under droidtop's Settings > Plugins > Keys you trust. What changed: CHANGELOG.md."
