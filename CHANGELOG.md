@@ -3,6 +3,14 @@
 Every working build of `main` is a release (`v<version>-<CI run>`); the
 declared version moves with every change to the plugin's sources.
 
+## 0.3.1
+
+- Declares its context adapter (droidtop `computers.context_adapter`,
+  plugin-api F8): `f95checker`, the programs of
+  gamegrab-sources/droidtop-agent-f95-adapter release build-1 for Windows
+  x86_64, Linux x86_64 and macOS arm64, pinned by SHA-256. droidtop opens the
+  plugin's F95Checker context only for an adapter the manifest declares.
+
 ## 0.3.0
 
 - Downloads carry an engine hint (droidtop's acquire reply `engine`): Ren'Py,

@@ -4,7 +4,7 @@ description: >
   thread links and update checks for your games. Built by
   droidtop_plugin/build.sh.
 publish_to: 'none'
-version: 0.3.0
+version: 0.3.1
 
 environment:
   sdk: '>=3.10.0 <4.0.0'
