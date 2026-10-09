@@ -3,7 +3,7 @@
   "origin": "gamegrab",
   "label": "F95zone",
   "description": "Unofficial plugin from gamegrab-sources, not part of droidtop and not affiliated with F95zone or F95Checker. Finds F95zone games, links your games to their threads, tells you when a new version is out, and downloads them into your game folders.",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "kind": "flutter_embed",
   "contractVersion": 2,
   "requestsRoot": false,

@@ -3,6 +3,13 @@
 Every working build of `main` is a release (`v<version>-<CI run>`); the
 declared version moves with every change to the plugin's sources.
 
+## 0.3.2
+
+- The bundle's dex is no longer obfuscated, so droidtop's engine can call its
+  plugin registrant (the contained-tier rig run on 0.3.1 found
+  `registerWith(q6)` and no Flutter plugin package registered). The build
+  now fails if the dex does not name droidtop's FlutterEngine.
+
 ## 0.3.1
 
 - Declares its context adapter (droidtop `computers.context_adapter`,

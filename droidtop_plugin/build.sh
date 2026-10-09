@@ -30,6 +30,13 @@ flutter create --platforms=android --org io.github.gamegrabsources --project-nam
 cp pubspec.yaml analysis_options.yaml "$OUT/scaffold/"
 rm -rf -- "${OUT:?}/scaffold/lib" "${OUT:?}/scaffold/test"
 cp -r lib "$OUT/scaffold/lib"
+# The dex this bundle ships runs against droidtop's own Flutter embedding, not the APK's. Obfuscated, R8 renames
+# io.flutter.embedding.engine.FlutterEngine inside it and GeneratedPluginRegistrant.registerWith takes a class droidtop's
+# engine is not, so no Flutter plugin package registers (contained-tier rig run on 0.3.1: registerWith(q6)). Flutter's
+# Gradle plugin adds android/app/proguard-rules.pro to a release build; names are kept there (droidtop 7db82b27, the
+# Flutter sample's build.sh).
+printf '%s\n' "# droidtop flutter_embed: the shipped dex links against droidtop's embedding by name." '-dontobfuscate' \
+  > "$OUT/scaffold/android/app/proguard-rules.pro"
 
 (
   cd "$OUT/scaffold"
@@ -53,6 +60,11 @@ done
 # half; droidtop's engine host loads payload/dex and calls the registrant.
 mkdir -p "$OUT/payload/dex"
 unzip -qo "$APK" 'classes*.dex' -d "$OUT/payload/dex"
+# The registrant must name the real FlutterEngine, or droidtop cannot call it (see the proguard rule above).
+if ! grep -qa 'Lio/flutter/embedding/engine/FlutterEngine;' "$OUT"/payload/dex/classes*.dex; then
+  echo "the shipped dex does not name io.flutter.embedding.engine.FlutterEngine: it was obfuscated" >&2
+  exit 1
+fi
 
 # flutter_assets sits at assets/flutter_assets/** in the APK and at the
 # payload's top level in a bundle.
