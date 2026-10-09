@@ -42,7 +42,9 @@ class WatchedThread {
     this.notes = '',
     required this.changedAt,
     this.watched = true,
-  });
+    this.finished,
+    Map<String, int>? fieldAt,
+  }) : fieldAt = fieldAt ?? {};
 
   final int id;
   String name;
@@ -60,6 +62,12 @@ class WatchedThread {
   /// False is a tombstone: unwatched here, kept so the other side learns it.
   bool watched;
 
+  /// The version the person finished (F95Checker's `finished`).
+  String? finished;
+
+  /// When each field last changed on this side (ms), for the merge's conflict rules (docs/CONTEXT.md).
+  final Map<String, int> fieldAt;
+
   Map<String, dynamic> toJson() => {
         'id': id,
         'name': name,
@@ -68,6 +76,8 @@ class WatchedThread {
         'notes': notes,
         'changedAt': changedAt,
         'watched': watched,
+        'finished': finished,
+        'fieldAt': fieldAt,
       };
 
   static WatchedThread fromJson(Map<String, dynamic> j) => WatchedThread(
@@ -78,6 +88,8 @@ class WatchedThread {
         notes: j['notes'] as String? ?? '',
         changedAt: (j['changedAt'] as num?)?.toInt() ?? 0,
         watched: j['watched'] as bool? ?? true,
+        finished: j['finished'] as String?,
+        fieldAt: ((j['fieldAt'] as Map?) ?? const {}).map((k, v) => MapEntry('$k', (v as num).toInt())),
       );
 }
 
@@ -156,4 +168,79 @@ class PluginState {
       for (final item in list.whereType<Map>()) (item['id'] as num).toInt(): ThreadCheck.fromJson(item.cast<String, dynamic>()),
     });
   }
+}
+
+/// The separator two conflicting notes are kept around (docs/CONTEXT.md).
+const String notesSeparator = '-- from the handheld --';
+
+/// Context sync's three-way merge (docs/CONTEXT.md): [base] as of the last
+/// sync, the handheld's copy [device] and the computer's copy [pc], merged
+/// field by field. A side without a record it had at the base has unwatched
+/// it, and only that; every other field of it is the base's.
+Map<int, WatchedThread> mergeContext(
+  Map<int, WatchedThread> base,
+  Map<int, WatchedThread> device,
+  Map<int, WatchedThread> pc,
+) {
+  final out = <int, WatchedThread>{};
+  for (final id in {...base.keys, ...device.keys, ...pc.keys}) {
+    final b = base[id];
+    WatchedThread? side(WatchedThread? r) => r ??
+        (b == null
+            ? null
+            : WatchedThread(
+                id: id,
+                name: b.name,
+                version: b.version,
+                installed: b.installed,
+                finished: b.finished,
+                notes: b.notes,
+                changedAt: b.changedAt,
+                watched: false,
+                fieldAt: Map.of(b.fieldAt),
+              ));
+    final d = side(device[id]);
+    final p = side(pc[id]);
+
+    T pick<T>(String field, T Function(WatchedThread?) get, T Function(T dv, T pv) conflict) {
+      final vb = get(b), vd = get(d), vp = get(p);
+      final changedD = d != null && vd != vb;
+      final changedP = p != null && vp != vb;
+      if (!changedD && !changedP) return vb;
+      if (changedD && !changedP) return vd;
+      if (!changedD && changedP) return vp;
+      if (vd == vp) return vd;
+      return conflict(vd, vp);
+    }
+
+    int at(WatchedThread? r, String field) => r?.fieldAt[field] ?? 0;
+    T later<T>(String field, T dv, T pv, {required bool tieToPc}) {
+      final dt = at(d, field), pt = at(p, field);
+      if (dt == pt) return tieToPc ? pv : dv;
+      return dt > pt ? dv : pv;
+    }
+
+    // An unwatch on one side meets the person's own edit of that thread on the other (not the index's new
+    // version): the thread comes back, the "watched wins" rule.
+    bool edited(WatchedThread? r) =>
+        r != null && r.watched && b != null && (r.name != b.name || r.installed != b.installed || r.finished != b.finished || r.notes != b.notes);
+    var watched = pick<bool>('watched', (r) => r?.watched ?? false, (dv, pv) => true);
+    if (!watched && b != null && ((d?.watched == false && edited(p)) || (p?.watched == false && edited(d)))) watched = true;
+    final merged = WatchedThread(
+      id: id,
+      name: pick<String>('name', (r) => r?.name ?? '', (dv, pv) => pv),
+      version: pick<String?>('version', (r) => r?.version, (dv, pv) => later('version', dv, pv, tieToPc: true)),
+      installed: pick<String?>('installed', (r) => r?.installed, (dv, pv) => later('installed', dv, pv, tieToPc: false)),
+      finished: pick<String?>('finished', (r) => r?.finished, (dv, pv) => later('finished', dv, pv, tieToPc: false)),
+      notes: pick<String>('notes', (r) => r?.notes ?? '', (dv, pv) => [pv, notesSeparator, dv].join('\n')),
+      changedAt: [b?.changedAt ?? 0, d?.changedAt ?? 0, p?.changedAt ?? 0].reduce((x, y) => x > y ? x : y),
+      watched: watched,
+      fieldAt: {
+        for (final f in const ['watched', 'name', 'version', 'installed', 'finished', 'notes'])
+          f: [at(b, f), at(d, f), at(p, f)].reduce((x, y) => x > y ? x : y),
+      },
+    );
+    out[id] = merged;
+  }
+  return out;
 }

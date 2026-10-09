@@ -49,6 +49,7 @@ class ThreadDetail {
     this.image,
     this.mirrors = const [],
     this.lastUpdated,
+    this.engineId,
   });
 
   final int id;
@@ -63,6 +64,9 @@ class ThreadDetail {
   final String? image;
   final List<Mirror> mirrors;
   final int? lastUpdated;
+
+  /// The engines-database id for [engine], when it names one engine.
+  final String? engineId;
 
   static ThreadDetail parse(int id, Map<String, dynamic> root) {
     final mirrors = <Mirror>[];
@@ -90,6 +94,7 @@ class ThreadDetail {
       image: _httpOrNull(root['image_url']?.toString()),
       mirrors: mirrors,
       lastUpdated: int.tryParse(root['last_updated']?.toString() ?? ''),
+      engineId: type == null ? null : engineIds[type],
     );
   }
 
@@ -127,6 +132,12 @@ const Map<int, String> engines = {
   18: 'Tutorial',
   1: 'Misc',
 };
+
+/// droidtop's engines-database ids for the F95Checker types that name one
+/// engine (droidtop `EngineRegistryParser.ENGINE_IDS`); the acquire reply's
+/// engine hint. RPGM is left out on purpose: it is several engines (MV, MZ,
+/// VX Ace, ...), which droidtop tells apart from the files.
+const Map<int, String> engineIds = {14: 'renpy', 5: 'html', 31: 'godot', 19: 'unity', 20: 'unreal'};
 
 /// F95Checker's `Status` as the index sends it.
 const Map<String, String> statuses = {'1': 'In development', '2': 'Completed', '3': 'On hold', '4': 'Abandoned'};

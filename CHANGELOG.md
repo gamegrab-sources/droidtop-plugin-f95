@@ -3,6 +3,18 @@
 Every working build of `main` is a release (`v<version>-<CI run>`); the
 declared version moves with every change to the plugin's sources.
 
+## 0.3.0
+
+- Downloads carry an engine hint (droidtop's acquire reply `engine`): Ren'Py,
+  HTML, Godot, Unity and Unreal threads (F95Checker's type) are pinned to that
+  engine's Enginehost player when droidtop places the file. RPG Maker is left
+  to droidtop's detection (it is several engines).
+- Details for droidtop's scraper: a game linked to its thread is that thread
+  (no search); droidtop now asks for PC and engine games too.
+- Context sync defined (docs/CONTEXT.md): watched threads with latest,
+  installed and finished versions and notes, merged three ways per field with
+  F95Checker on the computer (`mergeContext`). The transport is droidtop's.
+
 ## 0.2.0
 
 - Update checks (`library.updates` `check`): F95Checker's public index, a

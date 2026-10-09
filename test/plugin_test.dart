@@ -230,6 +230,60 @@ void main() {
     final result = await plugin.job('library.sources', 'acquire', args);
     expect(result['ok'], isTrue);
     expect(jsonDecode((result['values'] as Map)['download'] as String), host.captured);
+    expect((result['values'] as Map)['engine'], 'renpy', reason: "F95Checker's type 14 is Ren'Py");
+  });
+
+  test('a game linked to its thread is that thread for the scraper, no search', () async {
+    final host = FakeHost();
+    final reply = data(await pluginOn(host).handle({
+      'point': 'library.metadata',
+      'op': 'match',
+      'args': {'title': 'Anything', 'sourceLinks': {'f95zone': '93340'}},
+    }));
+    expect(reply['candidates'], [
+      {'ids': {'thread': '93340'}, 'confidence': 1.0},
+    ]);
+    expect(host.requested, isEmpty);
+  });
+
+  group('context sync merges three ways, field by field (docs/CONTEXT.md)', () {
+    WatchedThread t({String name = 'Eternum', String? version, String? installed, String notes = '', bool watched = true, Map<String, int>? at}) =>
+        WatchedThread(id: 1, name: name, version: version, installed: installed, notes: notes, watched: watched, changedAt: 0, fieldAt: at);
+
+    test('one side changed: that side wins; nobody changed: the base stays', () {
+      final m = mergeContext({1: t(installed: 'v1')}, {1: t(installed: 'v2')}, {1: t(installed: 'v1', notes: 'pc note')})[1]!;
+      expect(m.installed, 'v2');
+      expect(m.notes, 'pc note');
+      expect(m.name, 'Eternum');
+    });
+
+    test('conflicts: installed by the later change, latest by the later check, name by the computer', () {
+      final m = mergeContext(
+        {1: t(installed: 'v1', version: 'v3')},
+        {1: t(name: 'Eternum (device)', installed: 'v2', version: 'v4', at: {'installed': 20, 'version': 5})},
+        {1: t(name: 'Eternum renamed', installed: 'v3', version: 'v5', at: {'installed': 10, 'version': 9})},
+      )[1]!;
+      expect(m.installed, 'v2');
+      expect(m.version, 'v5');
+      expect(m.name, 'Eternum renamed');
+    });
+
+    test('notes in conflict are both kept', () {
+      final m = mergeContext({1: t(notes: 'a')}, {1: t(notes: 'from device')}, {1: t(notes: 'from pc')})[1]!;
+      expect(m.notes, ['from pc', notesSeparator, 'from device'].join('\n'));
+    });
+
+    test('a watch wins over an unwatch, a one-sided unwatch stands, and a new thread on one side arrives', () {
+      expect(mergeContext({1: t()}, {1: t(watched: false)}, {1: t(installed: 'v2')})[1]!.watched, isTrue);
+      expect(mergeContext({1: t()}, {1: t(watched: false)}, {1: t(version: 'v9')})[1]!.watched, isFalse,
+          reason: "the index's new version is not the person's edit");
+      final gone = mergeContext({1: t(installed: 'v1')}, {}, {1: t(installed: 'v1')})[1]!;
+      expect(gone.watched, isFalse);
+      expect(gone.installed, 'v1');
+      final added = mergeContext({}, {}, {1: t(installed: 'v9')})[1]!;
+      expect(added.watched, isTrue);
+      expect(added.installed, 'v9');
+    });
   });
 
   test('an op that is not offered says so with droidtop\'s own error code', () async {

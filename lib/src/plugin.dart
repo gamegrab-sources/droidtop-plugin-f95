@@ -227,12 +227,25 @@ class F95Plugin {
     }
     final download = await services.openInSession(link);
     if (download == null) return {'ok': false, 'error': 'No download was started'};
-    return _done('Downloading ${detail.name}', {'download': jsonEncode(download)});
+    return _done('Downloading ${detail.name}', {
+      'download': jsonEncode(download),
+      // droidtop pins the placed game to this engine's player (plugin-api 1.6, engine hint).
+      'engine': ?detail.engineId,
+    });
   }
 
   // ----------------------------------------------------------- metadata (A3)
 
   Future<Map<String, dynamic>> _metadataMatch(Map<String, dynamic> args) async {
+    // A game the person linked to its thread is that thread, no search needed.
+    final linked = int.tryParse('${(args['sourceLinks'] as Map?)?[sourceKey] ?? ''}');
+    if (linked != null) {
+      return Reply.ok({
+        'candidates': [
+          {'ids': {'thread': '$linked'}, 'confidence': 1.0},
+        ],
+      });
+    }
     final title = args['title'] as String? ?? '';
     final key = nameKey(title);
     if (key.isEmpty) return Reply.ok({'candidates': <Object>[]});
