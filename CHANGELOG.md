@@ -3,6 +3,26 @@
 Every working build of `main` is a release (`v<version>-<CI run>`); the
 declared version moves with every change to the plugin's sources.
 
+## 0.2.0
+
+- Update checks (`library.updates` `check`): F95Checker's public index, a
+  fast check of up to ten threads per request and a full check only of the
+  threads whose stamp moved, a second between requests; one notification
+  when linked games have new versions, each said once.
+- Linking (`match`): the watch list's threads with the game's name first,
+  then F95zone's Latest Updates search.
+- Search, thread details and downloads (`library.sources`): the Latest
+  Updates search, the index's details (version, developer, engine, status)
+  and mirrors; Download reads the chosen mirror's link from the thread page
+  with the F95zone session and opens it in droidtop's web view, and the file
+  the page starts goes to droidtop's Downloads place.
+- Details for the scraper (`library.metadata`): description, developer,
+  engine and score.
+- Settings: sign in to F95zone in droidtop's web view (the session stays
+  with droidtop), sign out, and sync the watch list with F95zone both ways.
+- Runs contained: every request through droidtop (`net.http`,
+  `web.session`), state through droidtop's data API.
+
 ## 0.1.2
 
 - The official signing shape under the gamegrab-sources master: plugin id

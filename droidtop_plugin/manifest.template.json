@@ -2,8 +2,8 @@
   "id": "gamegrab.f95",
   "origin": "gamegrab",
   "label": "F95zone",
-  "description": "Unofficial plugin from gamegrab-sources, not part of droidtop and not affiliated with F95zone or F95Checker. Links your games to their F95zone threads and tells you when a new version is out.",
-  "version": "0.1.2",
+  "description": "Unofficial plugin from gamegrab-sources, not part of droidtop and not affiliated with F95zone or F95Checker. Finds F95zone games, links your games to their threads, tells you when a new version is out, and downloads them into your game folders.",
+  "version": "0.2.0",
   "kind": "flutter_embed",
   "contractVersion": 2,
   "requestsRoot": false,
@@ -14,8 +14,30 @@
       "id": "f95zone",
       "label": "F95zone thread",
       "linkHint": "Thread link or number; blank unlinks"
+    },
+    { "point": "library.sources", "version": 1, "id": "f95zone", "label": "F95zone" },
+    { "point": "library.metadata", "version": 1, "id": "f95zone", "label": "F95zone" },
+    { "point": "ui.settings", "version": 1, "id": "main", "target": "plugin" }
+  ],
+  "permissions": [
+    {
+      "id": "net.domains",
+      "domains": ["f95zone.to", "api.f95checker.dev"],
+      "reason": "Searches F95zone and asks F95Checker's public index for thread versions and details"
+    },
+    {
+      "id": "web.session",
+      "domains": ["f95zone.to"],
+      "reason": "Lets you sign in to F95zone in droidtop's browser view, to see download links and sync your watch list"
+    },
+    {
+      "id": "notify.post",
+      "reason": "Tells you when a game you linked has a new version"
+    },
+    {
+      "id": "library.folders.write",
+      "reason": "Games you choose to download are placed in your game folder"
     }
   ],
-  "permissions": [],
   "abis": ["arm64-v8a", "x86_64"]
 }

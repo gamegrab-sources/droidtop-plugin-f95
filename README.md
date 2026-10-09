@@ -12,12 +12,12 @@ no screens of its own.
 
 ## Status
 
-In development (0.1.0). Built so far: pasting a thread link or number to link
-a game. Planned, in this order: update checks through F95Checker's public
-index (api.f95checker.dev), matching a game to its thread by its folder name,
-search through F95zone's Latest Updates feed, thread details, downloads into
-droidtop's Downloads place, F95zone sign-in, watched-thread sync, and context
-sync with F95Checker on your computer. See CHANGELOG.md.
+0.2.0: update checks with notifications, linking a game to its thread
+(watch list first, then search), search, thread details, downloads through
+droidtop's web view, details for droidtop's scraper, F95zone sign-in and
+watch-list sync. Context sync with F95Checker on your computer waits for
+droidtop's sync transport; its definition is in docs/CONTEXT.md. See
+CHANGELOG.md.
 
 ## How it fits droidtop
 
