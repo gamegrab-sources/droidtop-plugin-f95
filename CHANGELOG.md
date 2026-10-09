@@ -3,6 +3,12 @@
 Every working build of `main` is a release (`v<version>-<CI run>`); the
 declared version moves with every change to the plugin's sources.
 
+## 0.1.2
+
+- The official signing shape under the gamegrab-sources master: plugin id
+  `gamegrab.f95`, origin `gamegrab`, this repository's own key, and its
+  certificate packed as `origin.cert`. No key file at the repository root.
+
 ## 0.1.1
 
 - Signed under the gamegrab-sources origin `bi0shacker001` (plugin id

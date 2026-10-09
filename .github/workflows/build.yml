@@ -3,7 +3,9 @@ name: Build
 # Every push and pull request: analyze, unit tests, and the plugin bundle for
 # both ABIs. A push to main also signs the bundle with this repository's own
 # key and publishes it as a permanent release (one per working build), when
-# the key is set. The key is never derived from droidtop's plugin master.
+# the key is set. The key comes from the gamegrab-sources master, never
+# droidtop's: PLUGIN_SIGNING_KEY and its certificate PLUGIN_SIGNING_CERT,
+# both set by plugin-key-provision.
 
 on:
   push:
@@ -95,24 +97,27 @@ jobs:
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
           KEY_PEM: ${{ secrets.PLUGIN_SIGNING_KEY }}
+          CERT_JSON: ${{ secrets.PLUGIN_SIGNING_CERT }}
         run: |
           if [ -z "$KEY_PEM" ]; then
             echo "signed=false" >> "$GITHUB_OUTPUT"
             echo "PLUGIN_SIGNING_KEY is not set on this repository: no signed bundle, no release." >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
-          test -f droidtop-plugin-key.json || { echo "::error::the key is set but droidtop-plugin-key.json is not committed at the repository root"; exit 1; }
-          KEYFILE="$RUNNER_TEMP/plugin-signing-key.pem"
+          test -n "$CERT_JSON" || { echo "::error::PLUGIN_SIGNING_KEY is set but PLUGIN_SIGNING_CERT is not: droidtop refuses a bundle without its certificate"; exit 1; }
           umask 077
+          KEYFILE="$RUNNER_TEMP/plugin-signing-key.pem"
+          CERTFILE="$RUNNER_TEMP/origin.cert"
           printf '%s' "$KEY_PEM" > "$KEYFILE"
-          PLUGIN_SIGNING_KEY_FILE="$KEYFILE" ./droidtop_plugin/sign.sh
-          rm -f -- "$KEYFILE"
+          printf '%s' "$CERT_JSON" > "$CERTFILE"
+          PLUGIN_SIGNING_KEY_FILE="$KEYFILE" PLUGIN_SIGNING_CERT_FILE="$CERTFILE" ./droidtop_plugin/sign.sh
+          rm -f -- "$KEYFILE" "$CERTFILE"
           echo "signed=true" >> "$GITHUB_OUTPUT"
 
       - name: Publish the release
         # One permanent release per working build of main: tag
-        # v<declared>-<run>, carrying the signed bundle, its manifest and the
-        # public key file (the catalog lists plugins from these).
+        # v<declared>-<run>, carrying the signed bundle and its manifest (the
+        # catalog lists plugins from these).
         if: steps.sign.outputs.signed == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -120,8 +125,8 @@ jobs:
           id="$(python3 -c "import json; print(json.load(open('droidtop_plugin/build/manifest.json'))['id'])")"
           version="$(python3 -c "import json; print(json.load(open('droidtop_plugin/build/manifest.json'))['version'])")"
           cp droidtop_plugin/build/manifest.json "$id.manifest.json"
-          gh release create "v$version" "$id.droidplugin.tar.xz" "$id.manifest.json" droidtop-plugin-key.json \
+          gh release create "v$version" "$id.droidplugin.tar.xz" "$id.manifest.json" \
             --repo "${{ github.repository }}" \
             --target "${{ github.sha }}" \
             --title "F95zone $version" \
-            --notes "Signed droidtop plugin bundle built from ${{ github.sha }}. Unofficial (gamegrab-sources): trust droidtop-plugin-key.json under droidtop's Settings > Plugins > Keys you trust. What changed: CHANGELOG.md."
+            --notes "Signed droidtop plugin bundle built from ${{ github.sha }}. Unofficial (gamegrab-sources): its key is certified by the gamegrab-sources master, which droidtop trusts once you add the gamegrab-sources catalog. What changed: CHANGELOG.md."

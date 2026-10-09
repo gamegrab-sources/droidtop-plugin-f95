@@ -33,13 +33,12 @@ sync with F95Checker on your computer. See CHANGELOG.md.
 
 ## Installing
 
-Releases carry the signed bundle (`bi0shacker001.f95.droidplugin.tar.xz`), its
-manifest and `droidtop-plugin-key.json`. In droidtop: Settings > Plugins >
-Keys you trust, add this repository, then install the bundle and approve it.
-It is signed with the gamegrab-sources key (origin `bi0shacker001`, the
-same key as droidtop-plugin-romgi and the one the gamegrab-sources catalog
-trusts), which is not derived from droidtop's plugin master, so droidtop
-treats the plugin as user-trusted, not official.
+Releases carry the signed bundle (`gamegrab.f95.droidplugin.tar.xz`) and its
+manifest. The bundle is signed with this repository's own key, and the key's
+certificate (`origin.cert`, inside the bundle) comes from the gamegrab-sources
+master, not droidtop's plugin master. In droidtop, add the gamegrab-sources
+catalog (Settings > Plugins > Add > Catalogs); droidtop then trusts that
+master, and the plugin installs from the catalog as unofficial.
 
 ## Building
 
@@ -47,7 +46,9 @@ CI builds every push (`.github/workflows/build.yml`): `flutter analyze`,
 `flutter test`, and `droidtop_plugin/build.sh`, which scaffolds the Android
 host project with `flutter create`, builds `libapp.so` for arm64-v8a and
 x86_64, and writes the unsigned manifest and payload. On `main` it signs with
-the repository secret `PLUGIN_SIGNING_KEY` and publishes a release. Flutter
+the repository secrets `PLUGIN_SIGNING_KEY` and `PLUGIN_SIGNING_CERT` (set by
+droidtop's `plugin-key-provision official` against the gamegrab-sources
+master seed) and publishes a release. Flutter
 must be 3.47.5, the engine droidtop pins.
 
 ## Licence

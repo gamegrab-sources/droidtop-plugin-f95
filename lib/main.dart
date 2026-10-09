@@ -17,7 +17,7 @@ import 'src/plugin.dart';
 
 /// The plugin id, stamped by droidtop_plugin/build.sh; the channel name
 /// must equal it, because droidtop builds the channel from the installed id.
-const String pluginId = String.fromEnvironment('DROIDTOP_PLUGIN_ID', defaultValue: 'bi0shacker001.f95');
+const String pluginId = String.fromEnvironment('DROIDTOP_PLUGIN_ID', defaultValue: 'gamegrab.f95');
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();

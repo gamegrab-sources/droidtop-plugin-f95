@@ -1,9 +1,9 @@
 {
-  "id": "bi0shacker001.f95",
-  "origin": "bi0shacker001",
+  "id": "gamegrab.f95",
+  "origin": "gamegrab",
   "label": "F95zone",
   "description": "Unofficial plugin from gamegrab-sources, not part of droidtop and not affiliated with F95zone or F95Checker. Links your games to their F95zone threads and tells you when a new version is out.",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "kind": "flutter_embed",
   "contractVersion": 2,
   "requestsRoot": false,
