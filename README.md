@@ -33,11 +33,13 @@ sync with F95Checker on your computer. See CHANGELOG.md.
 
 ## Installing
 
-Releases carry the signed bundle (`gamegrab.f95.droidplugin.tar.xz`), its
+Releases carry the signed bundle (`bi0shacker001.f95.droidplugin.tar.xz`), its
 manifest and `droidtop-plugin-key.json`. In droidtop: Settings > Plugins >
 Keys you trust, add this repository, then install the bundle and approve it.
-The key is this repository's own and is not derived from droidtop's plugin
-master, so droidtop treats the plugin as user-trusted, not official.
+It is signed with the gamegrab-sources key (origin `bi0shacker001`, the
+same key as droidtop-plugin-romgi and the one the gamegrab-sources catalog
+trusts), which is not derived from droidtop's plugin master, so droidtop
+treats the plugin as user-trusted, not official.
 
 ## Building
 

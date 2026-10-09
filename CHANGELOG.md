@@ -3,6 +3,12 @@
 Every working build of `main` is a release (`v<version>-<CI run>`); the
 declared version moves with every change to the plugin's sources.
 
+## 0.1.1
+
+- Signed under the gamegrab-sources origin `bi0shacker001` (plugin id
+  `bi0shacker001.f95`), the origin the gamegrab-sources catalog trusts, so
+  one trusted key covers every plugin in the organisation.
+
 ## 0.1.0
 
 - The repository: build, sign and release path (both ABIs), licence and
