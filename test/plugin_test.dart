@@ -19,7 +19,7 @@ class FakeHost implements Host {
   @override
   Future<Map<String, dynamic>> call(String api, int version, String op, Map<String, dynamic> args) async {
     switch ('$api $op') {
-      case 'net http':
+      case 'net request':
       case 'web.session fetch':
         final url = args['url'] as String;
         requested.add('${args['method'] ?? 'GET'} $url');
@@ -39,7 +39,7 @@ class FakeHost implements Host {
       case 'notify post':
         notified.add([args['title'] as String, args['text'] as String]);
         return Reply.ok({'posted': true});
-      case 'web.session status':
+      case 'web.session get_status':
         return Reply.ok({'signedIn': signedIn});
       case 'web.session open_in_session':
         return Reply.ok({'captured': captured != null, if (captured != null) 'download': captured});

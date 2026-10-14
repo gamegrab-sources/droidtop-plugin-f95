@@ -140,6 +140,15 @@ const Map<int, String> engines = {
 const Map<int, String> engineIds = {14: 'renpy', 5: 'html', 31: 'godot', 19: 'unity', 20: 'unreal'};
 
 /// F95Checker's `Status` as the index sends it.
+/// A site's HTTP failure in plain words, for the line droidtop shows under the source.
+String httpError(String site, int status) {
+  if (status == 401 || status == 403) return '$site refused the request. Try again later.';
+  if (status == 404 || status == 410) return '$site no longer has that page.';
+  if (status == 429) return '$site asks to slow down. Try again in a minute.';
+  if (status >= 500 || status == 0) return '$site is not answering right now. Try again later.';
+  return '$site sent an error ($status). Try again later.';
+}
+
 const Map<String, String> statuses = {'1': 'In development', '2': 'Completed', '3': 'On hold', '4': 'Abandoned'};
 
 String threadUrl(int id) => 'https://f95zone.to/threads/$id/';
@@ -227,11 +236,11 @@ Map<int, int>? parseFastCheck(String body, List<int> asked) {
   try {
     parsed = jsonDecode(body);
   } on FormatException {
-    throw HostError('FAILED', "F95Checker's index answered with something that is not JSON");
+    throw HostError('FAILED', "F95Checker's index sent something this plugin could not read. Try again later.");
   }
   if (parsed is! Map) return null;
   final error = parsed['INDEX_ERROR']?.toString() ?? '';
-  if (error.isNotEmpty) throw HostError('FAILED', "F95Checker's index said: $error");
+  if (error.isNotEmpty) throw HostError('FAILED', "F95Checker's index could not answer. Try again later.");
   final out = <int, int>{};
   for (final id in asked) {
     final stamp = int.tryParse(parsed['$id']?.toString() ?? '');
@@ -274,10 +283,10 @@ class F95Client {
     });
     await _spaced();
     final answer = await services.http(uri.toString());
-    if (answer.status != 200) throw HostError('FAILED', 'F95zone answered the search with HTTP ${answer.status}');
+    if (answer.status != 200) throw HostError('FAILED', httpError('F95zone', answer.status));
     final root = jsonDecode(answer.body);
     if (root is! Map || root['status']?.toString() != 'ok') {
-      throw HostError('FAILED', 'F95zone refused the search');
+      throw HostError('FAILED', 'F95zone refused the search. Try again later.');
     }
     final data = ((root['msg'] as Map?)?['data'] as List?) ?? const [];
     return data.whereType<Map>().map((m) => ThreadSummary.fromFeed(m.cast<String, dynamic>())).whereType<ThreadSummary>().toList();
@@ -305,7 +314,7 @@ class F95Client {
   Future<Map<int, int>?> _fast(List<int> batch) async {
     await _spaced();
     final answer = await services.http('$index/fast?ids=${batch.join(',')}');
-    if (answer.status >= 500 || indexDown(answer.body)) throw HostError('FAILED', "F95Checker's index is down; it is asked again later");
+    if (answer.status >= 500 || indexDown(answer.body)) throw HostError('FAILED', "F95Checker's index is down. Try again later.");
     return parseFastCheck(answer.body, batch);
   }
 
@@ -314,11 +323,11 @@ class F95Client {
     await _spaced();
     final answer = await services.http('$index/full/$id?ts=$stamp');
     if (answer.status == 400 || answer.status == 403 || answer.status == 404) return null;
-    if (answer.status >= 500 || indexDown(answer.body)) throw HostError('FAILED', "F95Checker's index is down; it is asked again later");
+    if (answer.status >= 500 || indexDown(answer.body)) throw HostError('FAILED', "F95Checker's index is down. Try again later.");
     final root = jsonDecode(answer.body);
-    if (root is! Map) throw HostError('FAILED', "F95Checker's index answered thread $id with something that is not a thread");
+    if (root is! Map) throw HostError('FAILED', "F95Checker's index sent something this plugin could not read. Try again later.");
     final error = root['INDEX_ERROR']?.toString() ?? '';
-    if (error.isNotEmpty) throw HostError('FAILED', "F95Checker's index said: $error");
+    if (error.isNotEmpty) throw HostError('FAILED', "F95Checker's index could not answer. Try again later.");
     return ThreadDetail.parse(id, root.cast<String, dynamic>());
   }
 }

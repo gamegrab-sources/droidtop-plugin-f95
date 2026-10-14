@@ -76,7 +76,7 @@ class Services {
   /// F95zone session, which droidtop adds itself (`web.session fetch`).
   Future<HttpAnswer> http(String url,
       {String method = 'GET', Map<String, String>? headers, String? body, bool session = false, int timeoutMs = 30000}) async {
-    final data = await _data(session ? 'web.session' : 'net', session ? 'fetch' : 'http', {
+    final data = await _data(session ? 'web.session' : 'net', session ? 'fetch' : 'request', {
       'url': url,
       'method': method,
       'headers': ?headers,
@@ -132,7 +132,7 @@ class Services {
     }
   }
 
-  Future<bool> signedIn() async => (await _data('web.session', 'status', {}))['signedIn'] == true;
+  Future<bool> signedIn() async => (await _data('web.session', 'get_status', {}))['signedIn'] == true;
 
   Future<bool> signIn(String url, {String? doneCookie}) async =>
       (await _data('web.session', 'sign_in', {'url': url, 'doneCookie': ?doneCookie}))['signedIn'] == true;
@@ -146,5 +146,7 @@ class Services {
     return (data['download'] as Map?)?.cast<String, dynamic>();
   }
 
-  static const int _chunk = 120 * 1024;
+  // data.read answers in base64 inside a JSON string, which crosses droidtop's broker as UTF-16: 120 KiB came back
+  // as 320 KB binder replies (logcat, BlueStacks, 2026-10-14). 48 KiB keeps a reply near 128 KB.
+  static const int _chunk = 48 * 1024;
 }

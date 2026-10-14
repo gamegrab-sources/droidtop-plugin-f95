@@ -65,8 +65,8 @@ class F95Plugin {
       return Reply.error('UNSUPPORTED', 'not offered: $point $op');
     } on HostError catch (e) {
       return Reply.error(e.code == 'PERMISSION_DENIED' ? 'PERMISSION_DENIED' : 'FAILED', e.message);
-    } on FormatException catch (e) {
-      return Reply.error('FAILED', 'F95zone answered with something unexpected (${e.message})');
+    } on FormatException {
+      return Reply.error('FAILED', unreadablePage);
     }
   }
 
@@ -75,6 +75,7 @@ class F95Plugin {
     try {
       switch ('$point $op') {
         case 'ui.settings signIn':
+        case 'library.sources signIn':
           final ok = await services.signIn(loginUrl, doneCookie: signedInCookie);
           if (ok) await syncWatched();
           return _done(ok ? 'Signed in to F95zone' : 'Not signed in');
@@ -87,7 +88,7 @@ class F95Plugin {
     } on HostError catch (e) {
       return {'ok': false, 'error': e.message};
     } on FormatException {
-      return {'ok': false, 'error': 'F95zone answered with something unexpected'};
+      return {'ok': false, 'error': unreadablePage};
     }
   }
 
@@ -212,7 +213,7 @@ class F95Plugin {
     final id = int.tryParse('${(args['ref'] as Map?)?['id'] ?? ''}');
     if (id == null) return {'ok': false, 'error': 'Missing thread'};
     if (!await services.signedIn()) {
-      return {'ok': false, 'error': "F95zone shows download links only to members: sign in on the plugin's Settings page first"};
+      return {'ok': false, 'error': 'Sign in to F95zone first.'};
     }
     final detail = await client.full(id);
     if (detail == null) return {'ok': false, 'error': 'That thread is private, moved or deleted'};
@@ -338,6 +339,9 @@ Map<int, String> watchedThreads(String html) {
 
 // --------------------------------------------------------------- views
 
+/// A page the plugin could not read, in plain words; what the parser said stays off the screen.
+const String unreadablePage = 'F95zone sent a page this plugin could not read. Try again later.';
+
 Map<String, dynamic> _view(String title, List<Map<String, dynamic>> items, {String? subtitle}) => {
       'view': 1,
       'title': title,
@@ -379,7 +383,14 @@ Map<String, dynamic> detailView(ThreadDetail d, {required bool signedIn}) {
         'type': 'info',
         'id': 'signin',
         'title': 'Sign in to download',
-        'subtitle': "F95zone shows download links only to members. Sign in on this plugin's Settings page.",
+        'subtitle': 'F95zone shows download links to members.',
+      },
+    if (!signedIn)
+      {
+        'type': 'button',
+        'id': 'signin-button',
+        'title': 'Sign in to F95zone',
+        'action': {'kind': 'job', 'op': 'signIn', 'title': 'Sign in to F95zone'},
       }
     else if (options.isEmpty)
       {'type': 'info', 'id': 'none', 'title': 'No downloads listed', 'subtitle': 'The thread lists no download mirrors.'}
@@ -409,7 +420,7 @@ Map<String, dynamic> settingsView({required bool signedIn, required int watched,
         'id': 'account',
         'title': 'F95zone account',
         'value': signedIn ? 'Signed in' : 'Not signed in',
-        'subtitle': 'You sign in on F95zone\'s own page in droidtop\'s browser view; this plugin never sees your password.',
+        'subtitle': "On F95zone's own page. This plugin never sees your password.",
       },
       if (signedIn) ...[
         {

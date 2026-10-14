@@ -3,6 +3,17 @@
 Every working build of `main` is a release (`v<version>-<CI run>`); the
 declared version moves with every change to the plugin's sources.
 
+## 0.4.0
+
+- Failures in plain words: "F95zone refused the request. Try again later."
+  instead of "F95zone answered the search with HTTP 403" (seen on the rig),
+  and no parser or index text on screen.
+- The detail page has its own Sign in button where downloads need it.
+- Shorter text: one-line description (the catalog marks the plugin
+  Unofficial) and account hint.
+- droidtop's contract 2.1 host names (net.request, web.session.get_status;
+  needs droidtop 0.2.0-dev.1767 or newer) and 48 KiB data reads.
+
 ## 0.3.2
 
 - The bundle's dex is no longer obfuscated, so droidtop's engine can call its
