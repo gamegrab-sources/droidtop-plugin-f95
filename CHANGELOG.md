@@ -3,6 +3,12 @@
 Every working build of `main` is a release (`v<version>-<CI run>`); the
 declared version moves with every change to the plugin's sources.
 
+## 0.4.1
+
+- Declares the systems it serves (Windows and Linux games), so droidtop lists it in PC searches and not under a console such as Game Boy Advance.
+  Needs a droidtop that reads `systems` on `library.sources` (docs/plugin-api.md 1.6); an older
+  droidtop ignores the field and lists the source everywhere, as before.
+
 ## 0.4.0
 
 - Failures in plain words: "F95zone refused the request. Try again later."

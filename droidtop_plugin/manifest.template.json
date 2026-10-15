@@ -3,7 +3,7 @@
   "origin": "gamegrab",
   "label": "F95zone",
   "description": "Finds F95zone games, checks your linked games for new versions, and downloads them with your F95zone account.",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "kind": "flutter_embed",
   "contractVersion": 2,
   "requestsRoot": false,
@@ -19,7 +19,8 @@
       "point": "library.sources",
       "version": 1,
       "id": "f95zone",
-      "label": "F95zone"
+      "label": "F95zone",
+      "systems": ["windows", "linux"]
     },
     {
       "point": "library.metadata",
