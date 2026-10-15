@@ -3,6 +3,10 @@
 Every working build of `main` is a release (`v<version>-<CI run>`); the
 declared version moves with every change to the plugin's sources.
 
+## 0.4.2
+
+- Signs with a leaf certificate issued by the gamegrab root (`manifest.jws`), and publishes the gamegrab root certificate as `droidtop-plugin-key.json`.
+
 ## 0.4.1
 
 - Declares the systems it serves (Windows and Linux games), so droidtop lists it in PC searches and not under a console such as Game Boy Advance.
