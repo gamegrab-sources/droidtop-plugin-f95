@@ -3,6 +3,10 @@
 Every working build of `main` is a release (`v<version>-<CI run>`); the
 declared version moves with every change to the plugin's sources.
 
+## 0.4.3
+
+- Names its kind for droidtop's Plugins page (`category`, docs/plugin-api.md 1.2, Droidtop/tracker#179).
+
 ## 0.4.2
 
 - Signs with a leaf certificate issued by the gamegrab root (`manifest.jws`), and publishes the gamegrab root certificate as `droidtop-plugin-key.json`.
