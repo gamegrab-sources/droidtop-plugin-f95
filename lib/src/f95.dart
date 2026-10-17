@@ -335,6 +335,12 @@ class F95Client {
 
   /// The thread's details, or null when the index says it is gone (400, 403, 404).
   Future<ThreadDetail?> full(int id, {int stamp = 0}) async {
+    final root = await fullJson(id, stamp: stamp);
+    return root == null ? null : ThreadDetail.parse(id, root);
+  }
+
+  /// The index's answer for the thread as it came, for a caller that keeps it; null when the thread is gone.
+  Future<Map<String, dynamic>?> fullJson(int id, {int stamp = 0}) async {
     await _spaced();
     final answer = await services.http('$index/full/$id?ts=$stamp');
     if (answer.status == 400 || answer.status == 403 || answer.status == 404) return null;
@@ -343,6 +349,6 @@ class F95Client {
     if (root is! Map) throw HostError('FAILED', "F95Checker's index sent something this plugin could not read. Try again later.");
     final error = root['INDEX_ERROR']?.toString() ?? '';
     if (error.isNotEmpty) throw HostError('FAILED', "F95Checker's index could not answer. Try again later.");
-    return ThreadDetail.parse(id, root.cast<String, dynamic>());
+    return root.cast<String, dynamic>();
   }
 }

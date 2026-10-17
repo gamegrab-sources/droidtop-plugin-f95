@@ -347,6 +347,20 @@ void main() {
       expect(fetched['cover'], 'https://attachments.f95zone.to/2023/10/3018543_f95zone_banner.png');
     });
 
+    test('a second scrape within the week asks neither site again', () async {
+      final host = FakeHost();
+      feed(host, 'Eternum', [
+        {'thread_id': 93340, 'title': 'Eternum'},
+      ]);
+      host.web['https://api.f95checker.dev/full/93340?ts=0'] = [200, jsonEncode(fullAnswer)];
+      for (var pass = 0; pass < 2; pass++) {
+        await match(host, {'title': 'Eternum'});
+        data(await pluginOn(host).handle({'point': 'library.metadata', 'op': 'fetch', 'args': {'ids': {'thread': '93340'}}}));
+      }
+      expect(host.requested.where((r) => r.contains('latest_data')).length, 1);
+      expect(host.requested.where((r) => r.contains('/full/93340')).length, 1);
+    });
+
     test('the folder name finds what the title does not, and two exact names tie', () async {
       final host = FakeHost();
       feed(host, 'BADIK', []);

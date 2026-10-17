@@ -3,6 +3,12 @@
 Every working build of `main` is a release (`v<version>-<CI run>`); the
 declared version moves with every change to the plugin's sources.
 
+## 0.4.7
+
+- Fewer requests to F95zone and F95Checker: the scrape keeps a search's threads and a thread's details for a week in
+  the plugin's data, so re-scraping a library asks again only for what is new. Game pages, downloads and update
+  checks always ask anew.
+
 ## 0.4.6
 
 - The scrape's cover (droidtop docs/plugin-api.md 3 A3): `library.metadata fetch` names the thread's banner as

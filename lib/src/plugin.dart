@@ -270,8 +270,8 @@ class F95Plugin {
     }
     final found = <int, String>{};
     for (final entry in queries.entries) {
-      for (final t in await client.search(entry.value, rows: 15)) {
-        if (nameKey(t.title) == entry.key) found.putIfAbsent(t.id, () => t.title);
+      for (final t in await _scrapeSearch(entry.key, entry.value)) {
+        if (nameKey(t.key) == entry.key) found.putIfAbsent(t.value, () => t.key);
       }
     }
     return Reply.ok({
@@ -284,7 +284,7 @@ class F95Plugin {
   Future<Map<String, dynamic>> _metadataFetch(Map<String, dynamic> args) async {
     final id = int.tryParse('${(args['ids'] as Map?)?['thread'] ?? ''}');
     if (id == null) return Reply.error('INVALID_ARGS', 'Missing thread');
-    final detail = await client.full(id);
+    final detail = await _scrapeThread(id);
     if (detail == null) return Reply.error('NOT_FOUND', 'That thread is private, moved or deleted');
     return Reply.ok({
       // The thread this game is, so droidtop links the game to it: the next scrape and the update checks find it.
@@ -296,6 +296,54 @@ class F95Plugin {
       if (detail.engine != null) 'genre': detail.engine,
       if (detail.score != null && detail.score! > 0) 'rating': (detail.score! / 5).clamp(0.0, 1.0),
     });
+  }
+
+  /// How long the scrape keeps what F95zone and F95Checker told it: a game's name, banner and text rarely change, and
+  /// a library of hundreds of games re-scraped each week would otherwise ask both sites for every one again. Game
+  /// pages and update checks always ask anew.
+  static const int scrapeCacheMs = 7 * 24 * 60 * 60 * 1000;
+
+  Future<Map<String, dynamic>?> _fresh(String name) async {
+    final kept = await services.readJson(name);
+    if (kept is! Map) return null;
+    final at = (kept['at'] as num?)?.toInt() ?? 0;
+    final age = _now() - at;
+    return age >= 0 && age < scrapeCacheMs ? kept.cast<String, dynamic>() : null;
+  }
+
+  Future<void> _keep(String name, Map<String, dynamic> value) async {
+    try {
+      await services.writeJson(name, {'at': _now(), ...value});
+    } on HostError {
+      // Over the data quota: this answer is still good, it is only not kept.
+    }
+  }
+
+  /// A scrape search's threads as (title, id), from the cache when it is under a week old.
+  Future<List<MapEntry<String, int>>> _scrapeSearch(String key, String query) async {
+    final name = 'cache/search-$key.json';
+    final kept = await _fresh(name);
+    if (kept != null) {
+      return [
+        for (final t in (kept['threads'] as List? ?? const []).whereType<Map>())
+          if ((t['id'] as num?) != null) MapEntry('${t['title'] ?? ''}', (t['id'] as num).toInt()),
+      ];
+    }
+    final found = [for (final t in await client.search(query, rows: 15)) MapEntry(t.title, t.id)];
+    await _keep(name, {'threads': [for (final t in found) {'id': t.value, 'title': t.key}]});
+    return found;
+  }
+
+  /// A thread's details for the scrape, from the cache when it is under a week old. A gone thread is not kept.
+  Future<ThreadDetail?> _scrapeThread(int id) async {
+    final name = 'cache/full-$id.json';
+    final kept = await _fresh(name);
+    final root = kept?['index'];
+    if (root is Map) return ThreadDetail.parse(id, root.cast<String, dynamic>());
+    final fresh = await client.fullJson(id);
+    if (fresh == null) return null;
+    await _keep(name, {'index': fresh});
+    return ThreadDetail.parse(id, fresh);
   }
 
   // ----------------------------------------------------------- settings (C)
