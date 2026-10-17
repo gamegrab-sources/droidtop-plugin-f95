@@ -3,6 +3,14 @@
 Every working build of `main` is a release (`v<version>-<CI run>`); the
 declared version moves with every change to the plugin's sources.
 
+## 0.4.4
+
+- The F95zone account is droidtop's account row on the plugin's page, the one way in (droidtop docs/SPEC.md 12a,
+  "A plugin's site account"): the `web.session` entry declares the sign-in page and XenForo's signed-in cookie, and
+  the settings show no sign-in, account or sign-out row of their own.
+- After a sign-in through droidtop (`web.session.signed_in`), reads the account's name for the row
+  (`web.session set_account`) and syncs the watch list. An older droidtop never sends the event and shows "Signed in".
+
 ## 0.4.3
 
 - Names its kind for droidtop's Plugins page (`category`, docs/plugin-api.md 1.2, Droidtop/tracker#179).

@@ -14,6 +14,7 @@ class FakeHost implements Host {
   final List<String> requested = [];
   final List<List<String>> notified = [];
   bool signedIn = false;
+  String? account;
   Map<String, dynamic>? captured;
 
   @override
@@ -40,7 +41,10 @@ class FakeHost implements Host {
         notified.add([args['title'] as String, args['text'] as String]);
         return Reply.ok({'posted': true});
       case 'web.session get_status':
-        return Reply.ok({'signedIn': signedIn});
+        return Reply.ok({'signedIn': signedIn, 'account': account});
+      case 'web.session set_account':
+        account = args['name'] as String;
+        return Reply.ok({'saved': signedIn});
       case 'web.session open_in_session':
         return Reply.ok({'captured': captured != null, if (captured != null) 'download': captured});
     }
@@ -290,5 +294,28 @@ void main() {
     final reply = await pluginOn(FakeHost()).handle({'point': 'library.artwork', 'op': 'list', 'args': {}});
     expect(reply['ok'], isFalse);
     expect((reply['error'] as Map)['code'], 'UNSUPPORTED');
+  });
+
+  test("the settings draw no sign-in, account or sign-out row: droidtop's account row is the one way in", () async {
+    final host = FakeHost();
+    for (final signedIn in [false, true]) {
+      host.signedIn = signedIn;
+      final view = jsonEncode(data(await pluginOn(host).handle({'point': 'ui.settings', 'op': 'view', 'args': {}})));
+      expect(view.contains('signIn'), isFalse, reason: view);
+      expect(view.contains('signOut'), isFalse, reason: view);
+      expect(view.contains('"account"'), isFalse, reason: view);
+    }
+  });
+
+  test('after a sign-in through droidtop, the account name goes to droidtop and the watch list syncs', () async {
+    final host = FakeHost()..signedIn = true;
+    host.web['https://f95zone.to/watched/threads?page=1'] = [
+      200,
+      '<html data-csrf="1,a"><span class="p-navgroup-user-linkText">Reader &amp; Co</span><a href="/threads/x.93340/">x</a></html>',
+    ];
+    expect(await pluginOn(host).onEvent('web.session.signed_in'), {'ok': true});
+    expect(host.account, 'Reader & Co');
+    expect(host.requested, contains('GET https://f95zone.to/watched/threads?page=1'));
+    expect(accountName('<p>no navigation</p>'), isNull);
   });
 }

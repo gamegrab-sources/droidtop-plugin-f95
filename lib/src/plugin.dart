@@ -58,9 +58,6 @@ class F95Plugin {
           return await _metadataFetch(args);
         case 'ui.settings view':
           return Reply.ok(await _settings());
-        case 'ui.settings signOut':
-          await services.signOut();
-          return Reply.ok({'message': 'Signed out of F95zone', 'view': await _settings()});
       }
       return Reply.error('UNSUPPORTED', 'not offered: $point $op');
     } on HostError catch (e) {
@@ -74,8 +71,8 @@ class F95Plugin {
   Future<Map<String, dynamic>> job(String point, String op, Map<String, dynamic> args) async {
     try {
       switch ('$point $op') {
-        case 'ui.settings signIn':
         case 'library.sources signIn':
+          // A game page's Sign in: the job asks for the sign-in it needs, in droidtop's same web view and session.
           final ok = await services.signIn(loginUrl, doneCookie: signedInCookie);
           if (ok) await syncWatched();
           return _done(ok ? 'Signed in to F95zone' : 'Not signed in');
@@ -90,6 +87,21 @@ class F95Plugin {
     } on FormatException {
       return {'ok': false, 'error': unreadablePage};
     }
+  }
+
+  /// An event droidtop sent: after the person signed in to F95zone through droidtop, the account's name for its
+  /// account row, and the watch list. The answer starts no job.
+  Future<Map<String, dynamic>> onEvent(String event) async {
+    if (event == 'web.session.signed_in') {
+      try {
+        await syncWatched();
+      } on HostError {
+        // The name and the list are read again at the next sync; the sign-in itself is kept.
+      } on FormatException {
+        // As above.
+      }
+    }
+    return {'ok': true};
   }
 
   Map<String, dynamic> _done(String message, [Map<String, String> more = const {}]) =>
@@ -290,6 +302,10 @@ class F95Plugin {
       final answer = await services.http('https://f95zone.to/watched/threads?page=$page', session: true);
       if (answer.status != 200) break;
       csrf ??= csrfToken(answer.body);
+      if (page == 1) {
+        final name = accountName(answer.body);
+        if (name != null) await services.setAccount(name);
+      }
       final found = watchedThreads(answer.body);
       site.addAll(found);
       if (found.isEmpty || !answer.body.contains('pageNav-jump--next')) break;
@@ -318,6 +334,13 @@ class F95Plugin {
     await services.writeJson(_contextFile, context.toJson());
     return 'Watch list: ${context.active.length} threads${sent > 0 ? ', $sent changes sent to F95zone' : ''}';
   }
+}
+
+/// The signed-in member's name from a XenForo page's navigation, or null.
+String? accountName(String html) {
+  final raw = RegExp(r'class="p-navgroup-user-linkText"[^>]*>([^<]{1,64})<').firstMatch(html)?.group(1)?.trim();
+  if (raw == null || raw.isEmpty) return null;
+  return raw.replaceAll('&lt;', '<').replaceAll('&gt;', '>').replaceAll('&quot;', '"').replaceAll('&#039;', "'").replaceAll('&amp;', '&');
 }
 
 /// XenForo's CSRF token, which every form post carries (`data-csrf` on the page's root element).
@@ -413,34 +436,23 @@ Map<String, dynamic> detailView(ThreadDetail d, {required bool signedIn}) {
   ]);
 }
 
-/// `ui.settings` `view`: the F95zone session and the watch list.
+/// `ui.settings` `view`: the watch list. The F95zone account is droidtop's own account row on this plugin's page
+/// (droidtop docs/SPEC.md 12a, "A plugin's site account"), so the view draws no sign-in, account or sign-out row.
 Map<String, dynamic> settingsView({required bool signedIn, required int watched, required int syncedAt}) => _view('F95zone', [
-      {
-        'type': 'info',
-        'id': 'account',
-        'title': 'F95zone account',
-        'value': signedIn ? 'Signed in' : 'Not signed in',
-        'subtitle': "On F95zone's own page. This plugin never sees your password.",
-      },
-      if (signedIn) ...[
+      if (signedIn)
         {
           'type': 'button',
           'id': 'sync',
           'title': 'Sync the watch list now',
           'subtitle': '$watched watched threads${syncedAt > 0 ? '' : ', never synced'}',
           'action': {'kind': 'job', 'op': 'syncWatched', 'title': 'Sync the F95zone watch list'},
-        },
+        }
+      else
         {
-          'type': 'button',
-          'id': 'signout',
-          'title': 'Sign out',
-          'action': {'kind': 'call', 'op': 'signOut'},
-        },
-      ] else
-        {
-          'type': 'button',
-          'id': 'signin',
-          'title': 'Sign in to F95zone',
-          'action': {'kind': 'job', 'op': 'signIn', 'title': 'Sign in to F95zone'},
+          'type': 'info',
+          'id': 'watched',
+          'title': 'Watch list',
+          'value': '$watched threads',
+          'subtitle': "Syncs with F95zone once you sign in on droidtop's F95zone account row, on this plugin's page.",
         },
     ]);

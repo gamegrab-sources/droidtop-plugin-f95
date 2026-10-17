@@ -139,6 +139,15 @@ class Services {
 
   Future<void> signOut() => _data('web.session', 'clear', {});
 
+  /// Tells droidtop the signed-in account's name, for its account row. An older droidtop has no such op: ignored.
+  Future<void> setAccount(String name) async {
+    try {
+      await _data('web.session', 'set_account', {'name': name});
+    } on HostError {
+      // Not this droidtop's op yet, or no one is signed in any more.
+    }
+  }
+
   /// Opens [url] in droidtop's web view with the session; the download the page starts, or null.
   Future<Map<String, dynamic>?> openInSession(String url) async {
     final data = await _data('web.session', 'open_in_session', {'url': url});

@@ -41,6 +41,9 @@ void main() {
         final raw = (payload['args'] as Map?)?['call'];
         unawaited(_runJob(plugin, jobId, raw is String ? jsonDecode(raw) as Map<String, dynamic> : null));
         return jsonEncode({'ok': true});
+      case 'onEvent':
+        final payload = jsonDecode(call.arguments as String) as Map<String, dynamic>;
+        return jsonEncode(await plugin.onEvent(payload['event'] as String? ?? ''));
       case 'cancelJob':
         // Every job here is one request at a time and ends on its own; nothing to stop mid-way.
         return jsonEncode({'ok': true});
