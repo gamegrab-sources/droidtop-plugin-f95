@@ -207,6 +207,21 @@ String sanitizeQuery(String input) {
 /// punctuation (droidtop's own `GameNaming.nameKey` comparison).
 String nameKey(String name) => name.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '');
 
+/// A game folder's name without what a release adds to it: a version (`-0.9.5`, ` v1.2a`, `_Ep3`) and a platform
+/// (`-pc`, `-win`, `-linux`, `-mac`, `-android`), so "Eternum-0.9.5-pc" searches as "Eternum" and "Fallout 4" stays.
+String folderTitle(String folder) {
+  var name = folder.trim();
+  final platform = RegExp(r'[-_ .](pc|win|windows|linux|mac|osx|android|market)$', caseSensitive: false);
+  // A version is marked (v2, Ep3) or dotted (0.9.5): a bare trailing number may be the name's own ("Fallout 4").
+  final version = RegExp(r'[-_ .]+((v|ver|version|ep|episode|ch|chapter)[ ._-]?\d+([._]\d+)*|\d+([._]\d+)+)[a-z]?$', caseSensitive: false);
+  for (var i = 0; i < 4; i++) {
+    final before = name;
+    name = name.replaceFirst(platform, '').replaceFirst(version, '').trim();
+    if (name == before) break;
+  }
+  return name.replaceAll(RegExp(r'[_.]+'), ' ').trim();
+}
+
 /// The link a mirror selector picks out of a thread page: the supported form
 /// is F95Checker's `//a[starts-with(@href,'PREFIX')][N]` (the Nth link whose
 /// address starts with PREFIX). Null when the page has no such link or the

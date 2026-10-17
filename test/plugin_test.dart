@@ -318,4 +318,51 @@ void main() {
     expect(host.requested, contains('GET https://f95zone.to/watched/threads?page=1'));
     expect(accountName('<p>no navigation</p>'), isNull);
   });
+
+  group('an unlinked game is found by its title and its folder name (droidtop #575)', () {
+    void feed(FakeHost host, String query, List<Map<String, Object>> threads) {
+      host.web[Uri.https('f95zone.to', '/sam/latest_alpha/latest_data.php', {
+        'cmd': 'list', 'cat': 'games', 'page': '1', 'search': query, 'sort': 'likes', 'rows': '15',
+      }).toString()] = [200, jsonEncode({'status': 'ok', 'msg': {'data': threads}})];
+    }
+
+    Future<List> match(FakeHost host, Map<String, dynamic> args) async =>
+        data(await pluginOn(host).handle({'point': 'library.metadata', 'op': 'match', 'args': args}))['candidates'] as List;
+
+    test('one exact name is the game, and its fetch links it', () async {
+      final host = FakeHost();
+      feed(host, 'Eternum', [
+        {'thread_id': 93340, 'title': 'Eternum'},
+        {'thread_id': 5, 'title': 'Eternum Mod'},
+      ]);
+      final candidates = await match(host, {'title': 'Eternum', 'folder': {'name': 'Eternum-0.9.5-pc'}});
+      expect(candidates, [
+        {'ids': {'thread': '93340'}, 'confidence': 0.95, 'title': 'Eternum'},
+      ]);
+      // The folder's name searched as "Eternum" too, so it was asked once.
+      expect(host.requested.where((r) => r.contains('latest_data')).length, 1);
+      host.web['https://api.f95checker.dev/full/93340?ts=0'] = [200, jsonEncode(fullAnswer)];
+      final fetched = data(await pluginOn(host).handle({'point': 'library.metadata', 'op': 'fetch', 'args': {'ids': {'thread': '93340'}}}));
+      expect(fetched['sourceLinks'], {'f95zone': '93340'});
+    });
+
+    test('the folder name finds what the title does not, and two exact names tie', () async {
+      final host = FakeHost();
+      feed(host, 'BADIK', []);
+      feed(host, 'BeingADIK', [
+        {'thread_id': 1, 'title': 'Being a DIK'},
+        {'thread_id': 2, 'title': 'BeingADIK'},
+      ]);
+      final candidates = await match(host, {'title': 'BADIK', 'folder': {'name': 'BeingADIK_v0.9.0-pc'}});
+      expect(candidates.map((c) => c['ids']['thread']), ['1', '2']);
+      expect(candidates.map((c) => c['confidence']).toSet(), {0.6});
+    });
+
+    test('a release folder name loses its version and platform, a name ending in a number keeps it', () {
+      expect(folderTitle('Eternum-0.9.5-pc'), 'Eternum');
+      expect(folderTitle('Game_Ep3-win'), 'Game');
+      expect(folderTitle('Love Season 0.8.1a'), 'Love Season');
+      expect(folderTitle('Fallout 4'), 'Fallout 4');
+    });
+  });
 }

@@ -3,6 +3,13 @@
 Every working build of `main` is a release (`v<version>-<CI run>`); the
 declared version moves with every change to the plugin's sources.
 
+## 0.4.5
+
+- The scrape finds an unlinked game (droidtop Droidtop/tracker#575): `library.metadata match` searches F95zone by the
+  game's title and by its folder's name less version and platform ("Eternum-0.9.5-pc" is "Eternum"), and answers only
+  exact names. One thread is the game; several with that name tie, and droidtop asks the person to pick. `fetch`
+  names the thread (`sourceLinks`), so droidtop links the game to it.
+
 ## 0.4.4
 
 - The F95zone account is droidtop's account row on the plugin's page, the one way in (droidtop docs/SPEC.md 12a,

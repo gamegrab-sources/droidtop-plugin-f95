@@ -259,13 +259,24 @@ class F95Plugin {
         ],
       });
     }
-    final title = args['title'] as String? ?? '';
-    final key = nameKey(title);
-    if (key.isEmpty) return Reply.ok({'candidates': <Object>[]});
-    final found = (await client.search(title, rows: 10)).where((t) => nameKey(t.title) == key).toList();
+    // An unlinked game is searched by its title and by its folder's name, and only exact names count, as droidtop's
+    // own sources match (droidtop docs/SPEC.md 7h, "A source's own match"). One thread is the game; several with the
+    // same name tie, and droidtop asks the person to pick.
+    final folder = (args['folder'] as Map?)?['name'] as String? ?? args['fileName'] as String? ?? '';
+    final queries = <String, String>{};
+    for (final query in [args['title'] as String? ?? '', folderTitle(folder)]) {
+      final key = nameKey(query);
+      if (key.isNotEmpty) queries.putIfAbsent(key, () => query);
+    }
+    final found = <int, String>{};
+    for (final entry in queries.entries) {
+      for (final t in await client.search(entry.value, rows: 15)) {
+        if (nameKey(t.title) == entry.key) found.putIfAbsent(t.id, () => t.title);
+      }
+    }
     return Reply.ok({
       'candidates': [
-        for (final t in found) {'ids': {'thread': '${t.id}'}, 'confidence': found.length == 1 ? 0.9 : 0.6},
+        for (final t in found.entries) {'ids': {'thread': '${t.key}'}, 'confidence': found.length == 1 ? 0.95 : 0.6, 'title': t.value},
       ],
     });
   }
@@ -276,6 +287,8 @@ class F95Plugin {
     final detail = await client.full(id);
     if (detail == null) return Reply.error('NOT_FOUND', 'That thread is private, moved or deleted');
     return Reply.ok({
+      // The thread this game is, so droidtop links the game to it: the next scrape and the update checks find it.
+      'sourceLinks': {sourceKey: '$id'},
       if (detail.description != null) 'description': detail.description,
       if (detail.developer != null) 'developer': detail.developer,
       if (detail.engine != null) 'genre': detail.engine,
