@@ -237,6 +237,32 @@ void main() {
     expect((result['values'] as Map)['engine'], 'renpy', reason: "F95Checker's type 14 is Ren'Py");
   });
 
+  test("droidtop's record page gets the thread, and a picked mirror downloads it", () async {
+    final host = FakeHost();
+    final plugin = pluginOn(host);
+    host.web['https://api.f95checker.dev/full/93340?ts=0'] = [
+      200,
+      jsonEncode({...fullAnswer, 'tags': '[2, 139, 9999]', 'votes': '310', 'last_updated': '1700000000'}),
+    ];
+    final reply = await plugin.handle({'point': 'library.updates', 'op': 'record', 'args': {'source': 'f95zone', 'id': '93340'}});
+    final record = (reply['data'] as Map)['record'] as Map;
+    expect(record['title'], 'Eternum');
+    expect(record['tags'], ['2dcg', 'voyeurism'], reason: 'a number F95Checker does not name is left out');
+    expect(record['votes'], 310);
+    expect(record['updated'], 1700000000000);
+    expect((record['downloads'] as List).map((d) => (d as Map)['link']), ['0:AKIRABOX', '1:DATANODES']);
+    expect((record['downloads'] as List).first, containsPair('section', 'Win/Linux'));
+
+    host.signedIn = true;
+    host.web['https://f95zone.to/threads/93340/'] = [200, '<a href="https://datanodes.to/f/2">DATANODES</a>'];
+    host.captured = {'url': 'https://dl.datanodes.to/2', 'fileName': 'Eternum-0.9.6-pc.zip', 'session': 'w-2'};
+    final result = await plugin.job('library.updates', 'download', {'source': 'f95zone', 'id': '93340', 'link': '1:DATANODES', 'version': '0.9.5'});
+    expect(result['ok'], isTrue);
+    expect(jsonDecode((result['values'] as Map)['download'] as String), host.captured);
+    final moved = await plugin.job('library.updates', 'download', {'source': 'f95zone', 'id': '93340', 'link': '1:MEGA'});
+    expect(moved['ok'], isFalse, reason: 'a link the thread no longer lists at that place is refused');
+  });
+
   test('a game linked to its thread is that thread for the scraper, no search', () async {
     final host = FakeHost();
     final reply = data(await pluginOn(host).handle({

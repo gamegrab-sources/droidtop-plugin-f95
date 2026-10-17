@@ -46,6 +46,8 @@ class F95Plugin {
           return await _check(args);
         case 'library.updates match':
           return await _match(args);
+        case 'library.updates record':
+          return await _record(args);
         case 'library.sources form':
           return Reply.ok(searchForm());
         case 'library.sources search':
@@ -80,6 +82,8 @@ class F95Plugin {
           return _done(await syncWatched());
         case 'library.sources acquire':
           return await _acquire(args);
+        case 'library.updates download':
+          return await _download(args);
       }
       return {'ok': false, 'error': 'not offered: $point $op'};
     } on HostError catch (e) {
@@ -215,6 +219,32 @@ class F95Plugin {
     final detail = await client.full(id);
     if (detail == null) return Reply.error('NOT_FOUND', 'That thread is private, moved or deleted');
     return Reply.ok(detailView(detail, signedIn: await services.signedIn()));
+  }
+
+  /// `library.updates` `record`: the thread as droidtop's record page shows it (droidtop docs/plugin-api.md 3 A6;
+  /// F95Checker's Overview, Changelog, Downloads and Info, as f95seeker draws them). Each download's `link` is the
+  /// mirror's place and label, which `download` checks against the thread as it is then.
+  Future<Map<String, dynamic>> _record(Map<String, dynamic> args) async {
+    final id = int.tryParse('${args['id'] ?? ''}');
+    if (id == null) return Reply.error('INVALID_ARGS', 'Missing thread');
+    final detail = await client.full(id);
+    if (detail == null) return Reply.error('NOT_FOUND', 'That thread is private, moved or deleted');
+    return Reply.ok({'record': recordOf(detail)});
+  }
+
+  /// `library.updates` `download`, a job: the mirror the person picked on droidtop's record page, opened the way the
+  /// game page's Download is ([_acquire]). droidtop places the file as a new version folder of the linked game.
+  Future<Map<String, dynamic>> _download(Map<String, dynamic> args) async {
+    final id = int.tryParse('${args['id'] ?? ''}');
+    if (id == null) return {'ok': false, 'error': 'Missing thread'};
+    final detail = await client.full(id);
+    if (detail == null) return {'ok': false, 'error': 'That thread is private, moved or deleted'};
+    final index = mirrorFor(detail, '${args['link'] ?? ''}');
+    if (index == null) return {'ok': false, 'error': 'The thread no longer lists that link; open the page again'};
+    return _acquire({
+      'ref': {'id': '$id'},
+      'values': {'mirror': '$index'},
+    });
   }
 
   /// The person's Download: the thread page (signed in, links are for
@@ -434,6 +464,39 @@ Map<String, dynamic> _view(String title, List<Map<String, dynamic>> items, {Stri
       'subtitle': ?subtitle,
       'sections': [
         {'id': 'main', 'items': items},
+      ],
+    };
+
+/// A record page's link for mirror [index]: its place and its label, so a thread that changed since is noticed.
+String mirrorLink(int index, Mirror mirror) => '$index:${mirror.label}';
+
+/// The mirror a record page's [link] names, if the thread still lists it at that place under that label.
+int? mirrorFor(ThreadDetail detail, String link) {
+  final colon = link.indexOf(':');
+  final index = colon > 0 ? int.tryParse(link.substring(0, colon)) : null;
+  if (index == null || index < 0 || index >= detail.mirrors.length) return null;
+  return detail.mirrors[index].label == link.substring(colon + 1) ? index : null;
+}
+
+/// The thread as droidtop's record page takes it (droidtop docs/plugin-api.md 3 A6 `record`).
+Map<String, dynamic> recordOf(ThreadDetail d) => {
+      'id': '${d.id}',
+      'title': d.name,
+      'url': d.url,
+      'version': ?d.version,
+      'developer': ?d.developer,
+      'status': ?d.status,
+      if (d.score != null && d.score! > 0) 'rating': (d.score! / 5).clamp(0.0, 1.0),
+      'votes': ?d.votes,
+      if (d.tags.isNotEmpty) 'tags': d.tags,
+      // F95Checker's stamp is in seconds.
+      if (d.lastUpdated != null && d.lastUpdated! > 0) 'updated': d.lastUpdated! * 1000,
+      'cover': ?d.image,
+      'overview': ?d.description,
+      'changelog': ?d.changelog,
+      'downloads': [
+        for (var i = 0; i < d.mirrors.length; i++)
+          {'section': d.mirrors[i].section, 'host': d.mirrors[i].label, 'label': d.mirrors[i].label, 'link': mirrorLink(i, d.mirrors[i])},
       ],
     };
 
