@@ -344,6 +344,7 @@ void main() {
       host.web['https://api.f95checker.dev/full/93340?ts=0'] = [200, jsonEncode(fullAnswer)];
       final fetched = data(await pluginOn(host).handle({'point': 'library.metadata', 'op': 'fetch', 'args': {'ids': {'thread': '93340'}}}));
       expect(fetched['sourceLinks'], {'f95zone': '93340'});
+      expect(fetched['cover'], 'https://attachments.f95zone.to/2023/10/3018543_f95zone_banner.png');
     });
 
     test('the folder name finds what the title does not, and two exact names tie', () async {

@@ -3,6 +3,12 @@
 Every working build of `main` is a release (`v<version>-<CI run>`); the
 declared version moves with every change to the plugin's sources.
 
+## 0.4.6
+
+- The scrape's cover (droidtop docs/plugin-api.md 3 A3): `library.metadata fetch` names the thread's banner as
+  `cover`, so a game with no cover gets it. droidtop fetches it itself, only from this plugin's sites, which now list
+  `attachments.f95zone.to` where F95zone keeps its pictures. An older droidtop ignores the field.
+
 ## 0.4.5
 
 - The scrape finds an unlinked game (droidtop Droidtop/tracker#575): `library.metadata match` searches F95zone by the

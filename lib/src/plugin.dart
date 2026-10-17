@@ -289,6 +289,8 @@ class F95Plugin {
     return Reply.ok({
       // The thread this game is, so droidtop links the game to it: the next scrape and the update checks find it.
       'sourceLinks': {sourceKey: '$id'},
+      // The thread's banner, the picture people know a game by: droidtop fetches it itself as the cover.
+      if (detail.image != null) 'cover': detail.image,
       if (detail.description != null) 'description': detail.description,
       if (detail.developer != null) 'developer': detail.developer,
       if (detail.engine != null) 'genre': detail.engine,
