@@ -229,7 +229,18 @@ class F95Plugin {
     if (id == null) return Reply.error('INVALID_ARGS', 'Missing thread');
     final detail = await client.full(id);
     if (detail == null) return Reply.error('NOT_FOUND', 'That thread is private, moved or deleted');
-    return Reply.ok({'record': recordOf(detail)});
+    // Each mirror's address, read once from the thread page now (links are for members), so droidtop keeps it with the
+    // record and opens it itself in its web view; nothing is fetched again to download (droidtop Droidtop/tracker#599).
+    Map<int, String> addresses = const {};
+    if (detail.mirrors.isNotEmpty && await services.signedIn()) {
+      try {
+        final page = await services.http(detail.url, session: true);
+        addresses = mirrorAddresses(detail, page.body);
+      } on HostError {
+        // The page could not be read: the record keeps the mirrors as tokens for the download job.
+      }
+    }
+    return Reply.ok({'record': recordOf(detail, addresses: addresses)});
   }
 
   /// `library.updates` `download`, a job: the mirror the person picked on droidtop's record page, opened the way the
@@ -478,8 +489,16 @@ int? mirrorFor(ThreadDetail detail, String link) {
   return detail.mirrors[index].label == link.substring(colon + 1) ? index : null;
 }
 
-/// The thread as droidtop's record page takes it (droidtop docs/plugin-api.md 3 A6 `record`).
-Map<String, dynamic> recordOf(ThreadDetail d) => {
+/// Each mirror's https address on the thread page [html], by the mirror's place; a mirror the page has no link for is
+/// left out.
+Map<int, String> mirrorAddresses(ThreadDetail d, String html) => {
+      for (var i = 0; i < d.mirrors.length; i++)
+        if (resolveMirror(html, d.mirrors[i].selector) case final String url when url.startsWith('https://') && url.length <= 2048) i: url,
+    };
+
+/// The thread as droidtop's record page takes it (droidtop docs/plugin-api.md 3 A6 `record`); [addresses] are the
+/// mirrors' links as the thread page has them, which droidtop opens itself.
+Map<String, dynamic> recordOf(ThreadDetail d, {Map<int, String> addresses = const {}}) => {
       'id': '${d.id}',
       'title': d.name,
       'url': d.url,
@@ -496,7 +515,13 @@ Map<String, dynamic> recordOf(ThreadDetail d) => {
       'changelog': ?d.changelog,
       'downloads': [
         for (var i = 0; i < d.mirrors.length; i++)
-          {'section': d.mirrors[i].section, 'host': d.mirrors[i].label, 'label': d.mirrors[i].label, 'link': mirrorLink(i, d.mirrors[i])},
+          {
+            'section': d.mirrors[i].section,
+            'host': d.mirrors[i].label,
+            'label': d.mirrors[i].label,
+            'link': mirrorLink(i, d.mirrors[i]),
+            'url': ?addresses[i],
+          },
       ],
     };
 

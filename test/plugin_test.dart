@@ -263,6 +263,19 @@ void main() {
     expect(moved['ok'], isFalse, reason: 'a link the thread no longer lists at that place is refused');
   });
 
+  test("signed in, the record carries each mirror's address for droidtop to open (droidtop #599)", () async {
+    final host = FakeHost();
+    final plugin = pluginOn(host);
+    host.web['https://api.f95checker.dev/full/93340?ts=0'] = [200, jsonEncode(fullAnswer)];
+    host.signedIn = true;
+    host.web['https://f95zone.to/threads/93340/'] = [200, '<a href="https://datanodes.to/f/2">DATANODES</a>'];
+    final reply = await plugin.handle({'point': 'library.updates', 'op': 'record', 'args': {'source': 'f95zone', 'id': '93340'}});
+    final downloads = ((reply['data'] as Map)['record'] as Map)['downloads'] as List;
+    expect((downloads[1] as Map)['url'], 'https://datanodes.to/f/2');
+    expect((downloads[0] as Map).containsKey('url'), isFalse, reason: 'the page has no AKIRABOX link: that mirror stays a token');
+    expect((downloads[0] as Map)['link'], '0:AKIRABOX');
+  });
+
   test('a game linked to its thread is that thread for the scraper, no search', () async {
     final host = FakeHost();
     final reply = data(await pluginOn(host).handle({

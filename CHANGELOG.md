@@ -3,6 +3,13 @@
 Every working build of `main` is a release (`v<version>-<CI run>`); the
 declared version moves with every change to the plugin's sources.
 
+## 0.4.9
+
+- droidtop keeps the links and opens them itself (droidtop Droidtop/tracker#599): signed in, the update page's record
+  carries each mirror's address as the thread page has it, read once when the page opens. droidtop opens the one the
+  person picks in its web view, the person starts the download there, and droidtop takes it over. Nothing is fetched
+  again to download. A mirror the page has no link for stays a token for the `download` job.
+
 ## 0.4.8
 
 - droidtop's update page (`library.updates` `record` and the `download` job, droidtop docs/plugin-api.md 3 A6):
