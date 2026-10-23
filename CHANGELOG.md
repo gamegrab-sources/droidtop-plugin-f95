@@ -3,6 +3,11 @@
 Every working build of `main` is a release (`v<version>-<CI run>`); the
 declared version moves with every change to the plugin's sources.
 
+## 0.5.1
+
+- The release of 0.5.0's facets and contract 3 changes. 0.5.0's two commits shared one declared version, so CI's version rule refused the second
+  and 0.5.0 was never released; this version carries both unchanged.
+
 ## 0.5.0
 
 - On facets (droidtop docs/plugin-api.md 1.10). The update page's record also comes as the item page's bundles
