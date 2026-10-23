@@ -125,15 +125,15 @@ void main() {
     expect(item['id'], '93340');
     final facets = {for (final f in item['facets'] as List) (f as Map)['kind']: f};
     expect(facets.keys, containsAll(['metadata', 'image', 'download', 'links']));
-    expect(facets['metadata']['title'], 'Eternum');
-    expect(facets['metadata']['status'], 'ongoing', reason: "droidtop's word for In development");
-    expect(facets['image']['url'], 'https://attachments.f95zone.to/2023/10/3018543_f95zone_banner.png');
-    final entries = (facets['download']['entries'] as List).cast<Map>();
+    expect(facets['metadata']!['title'], 'Eternum');
+    expect(facets['metadata']!['status'], 'ongoing', reason: "droidtop's word for In development");
+    expect(facets['image']!['url'], 'https://attachments.f95zone.to/2023/10/3018543_f95zone_banner.png');
+    final entries = (facets['download']!['entries'] as List).cast<Map>();
     expect(entries.map((e) => e['host']), ['AKIRABOX', 'DATANODES']);
     expect(entries[0].containsKey('url'), isFalse, reason: 'a mirror without its address is the token alone');
     expect(entries[1]['url'], 'https://datanodes.to/f/2');
     expect(entries.every((e) => e['link'] != null), isTrue);
-    expect((facets['links']['entries'] as List).single['url'], 'https://f95zone.to/threads/93340/');
+    expect((facets['links']!['entries'] as List).single['url'], 'https://f95zone.to/threads/93340/');
   });
 
   test("a mirror selector picks its link out of the thread page", () {
