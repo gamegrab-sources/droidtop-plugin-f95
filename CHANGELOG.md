@@ -3,6 +3,12 @@
 Every working build of `main` is a release (`v<version>-<CI run>`); the
 declared version moves with every change to the plugin's sources.
 
+## 0.5.2
+
+- Each mirror names the systems its heading does (`systems`: "Win/Linux" is Windows and Linux, "Android" is Android),
+  on the item page's download bundle and the record alike, for droidtop's system picker on the Downloads tab
+  (Droidtop/tracker#617). A heading that names none ("Extras") is left for every system.
+
 ## 0.5.1
 
 - The release of 0.5.0's facets and contract 3 changes. 0.5.0's two commits shared one declared version, so CI's version rule refused the second

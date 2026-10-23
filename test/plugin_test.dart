@@ -136,6 +136,22 @@ void main() {
     expect((facets['links']!['entries'] as List).single['url'], 'https://f95zone.to/threads/93340/');
   });
 
+  test("each mirror names the systems its heading does, for droidtop's system picker", () {
+    expect(systemsOf('Win/Linux'), ['windows', 'linux']);
+    expect(systemsOf('PC'), ['windows']);
+    expect(systemsOf('MAC'), ['mac']);
+    expect(systemsOf('Android (APK)'), ['android']);
+    expect(systemsOf('Linux x64'), ['linux']);
+    expect(systemsOf('Extras'), isEmpty);
+    final d = ThreadDetail.parse(93340, fullAnswer);
+    final item = itemPageOf(d);
+    final download = (item['facets'] as List).cast<Map>().firstWhere((f) => f['kind'] == 'download');
+    final entries = (download['entries'] as List).cast<Map>();
+    expect(entries.every((e) => (e['systems'] as List).join(',') == 'windows,linux'), isTrue);
+    final record = recordOf(d);
+    expect(((record['downloads'] as List).first as Map)['systems'], ['windows', 'linux']);
+  });
+
   test("a mirror selector picks its link out of the thread page", () {
     const html = '<a href="https://datanodes.to/a">x</a> <a class="link" href="https://akirabox.com/one">1</a>'
         '<a href="https://akirabox.com/two">2</a>';

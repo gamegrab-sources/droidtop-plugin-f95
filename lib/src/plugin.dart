@@ -528,9 +528,24 @@ Map<String, dynamic> recordOf(ThreadDetail d, {Map<int, String> addresses = cons
             'label': d.mirrors[i].label,
             'link': mirrorLink(i, d.mirrors[i]),
             'url': ?addresses[i],
+            if (systemsOf(d.mirrors[i].section) case final systems when systems.isNotEmpty) 'systems': systems,
           },
       ],
     };
+
+/// The systems a thread's download heading names ("Win/Linux" is Windows and Linux), in droidtop's words and order
+/// (droidtop docs/plugin-api.md 1.10, the download bundle's `systems`; Droidtop/tracker#617). Empty for a heading that
+/// names none ("Extras"), which droidtop shows with every system.
+List<String> systemsOf(String heading) {
+  final spaced = heading.replaceAll(RegExp(r'[/\-&,+|]'), ' ');
+  bool names(String pattern) => RegExp(pattern, caseSensitive: false).hasMatch(spaced);
+  return [
+    if (names(r'\b(win(dows|32|64)?|pc)\b')) 'windows',
+    if (names(r'\blinux\b')) 'linux',
+    if (names(r'\b(mac(os)?|osx|apple)\b')) 'mac',
+    if (names(r'\b(android|apk)\b')) 'android',
+  ];
+}
 
 /// The `metadata` bundle's status for each of F95Checker's words ([statuses]).
 const Map<String, String> metadataStatus = {
@@ -578,6 +593,7 @@ Map<String, dynamic> itemPageOf(ThreadDetail d, {Map<int, String> addresses = co
                   'label': d.mirrors[i].label,
                   'link': mirrorLink(i, d.mirrors[i]),
                   if (addresses[i] case final String url) ...{'url': url, 'kind': 'page'},
+                  if (systemsOf(d.mirrors[i].section) case final systems when systems.isNotEmpty) 'systems': systems,
                 },
             ],
           },
