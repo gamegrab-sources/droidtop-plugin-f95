@@ -3,6 +3,14 @@
 Every working build of `main` is a release (`v<version>-<CI run>`); the
 declared version moves with every change to the plugin's sources.
 
+## 0.5.0
+
+- On facets (droidtop docs/plugin-api.md 1.10). The update page's record also comes as the item page's bundles
+  (`items: [{id, facets}]`: metadata, description, cover, the mirrors and the thread link). droidtop draws them through
+  its guards, and an older droidtop reads the `record` beside them as before.
+- The settings are `settings.page` facets in place of the `ui.settings` view: the watch list's sync job, or how many
+  threads it holds and where to sign in.
+
 ## 0.4.9
 
 - droidtop keeps the links and opens them itself (droidtop Droidtop/tracker#599): signed in, the update page's record

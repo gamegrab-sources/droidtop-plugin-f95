@@ -119,6 +119,23 @@ void main() {
     expect(versionOrNull('N/A'), isNull);
   });
 
+  test("the record is also the item page's bundles, with the mirrors' addresses", () {
+    final d = ThreadDetail.parse(93340, fullAnswer);
+    final item = itemPageOf(d, addresses: {1: 'https://datanodes.to/f/2'});
+    expect(item['id'], '93340');
+    final facets = {for (final f in item['facets'] as List) (f as Map)['kind']: f};
+    expect(facets.keys, containsAll(['metadata', 'image', 'download', 'links']));
+    expect(facets['metadata']['title'], 'Eternum');
+    expect(facets['metadata']['status'], 'ongoing', reason: "droidtop's word for In development");
+    expect(facets['image']['url'], 'https://attachments.f95zone.to/2023/10/3018543_f95zone_banner.png');
+    final entries = (facets['download']['entries'] as List).cast<Map>();
+    expect(entries.map((e) => e['host']), ['AKIRABOX', 'DATANODES']);
+    expect(entries[0].containsKey('url'), isFalse, reason: 'a mirror without its address is the token alone');
+    expect(entries[1]['url'], 'https://datanodes.to/f/2');
+    expect(entries.every((e) => e['link'] != null), isTrue);
+    expect((facets['links']['entries'] as List).single['url'], 'https://f95zone.to/threads/93340/');
+  });
+
   test("a mirror selector picks its link out of the thread page", () {
     const html = '<a href="https://datanodes.to/a">x</a> <a class="link" href="https://akirabox.com/one">1</a>'
         '<a href="https://akirabox.com/two">2</a>';
@@ -339,11 +356,20 @@ void main() {
     final host = FakeHost();
     for (final signedIn in [false, true]) {
       host.signedIn = signedIn;
-      final view = jsonEncode(data(await pluginOn(host).handle({'point': 'ui.settings', 'op': 'view', 'args': {}})));
+      final reply = data(await pluginOn(host).handle({'point': 'ui.facets', 'op': 'get', 'args': {'target': 'settings.page'}}));
+      final view = jsonEncode(reply);
       expect(view.contains('signIn'), isFalse, reason: view);
       expect(view.contains('signOut'), isFalse, reason: view);
       expect(view.contains('"account"'), isFalse, reason: view);
+      final facet = (reply['facets'] as List).single as Map;
+      expect(facet['id'], signedIn ? 'sync' : 'watched');
+      if (signedIn) expect(facet['call'], {'op': 'syncWatched', 'kind': 'job'});
     }
+  });
+
+  test('a target it does not declare gets no facets', () async {
+    final reply = data(await pluginOn(FakeHost()).handle({'point': 'ui.facets', 'op': 'get', 'args': {'target': 'quickmenu'}}));
+    expect(reply['facets'], isEmpty);
   });
 
   test('after a sign-in through droidtop, the account name goes to droidtop and the watch list syncs', () async {

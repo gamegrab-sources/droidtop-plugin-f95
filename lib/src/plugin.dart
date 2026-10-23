@@ -58,8 +58,8 @@ class F95Plugin {
           return await _metadataMatch(args);
         case 'library.metadata fetch':
           return await _metadataFetch(args);
-        case 'ui.settings view':
-          return Reply.ok(await _settings());
+        case 'ui.facets get':
+          return Reply.ok(await _facets('${args['target'] ?? ''}'));
       }
       return Reply.error('UNSUPPORTED', 'not offered: $point $op');
     } on HostError catch (e) {
@@ -78,7 +78,7 @@ class F95Plugin {
           final ok = await services.signIn(loginUrl, doneCookie: signedInCookie);
           if (ok) await syncWatched();
           return _done(ok ? 'Signed in to F95zone' : 'Not signed in');
-        case 'ui.settings syncWatched':
+        case 'ui.facets syncWatched':
           return _done(await syncWatched());
         case 'library.sources acquire':
           return await _acquire(args);
@@ -240,7 +240,12 @@ class F95Plugin {
         // The page could not be read: the record keeps the mirrors as tokens for the download job.
       }
     }
-    return Reply.ok({'record': recordOf(detail, addresses: addresses)});
+    // The record twice: as contract 3's item.page bundles, which droidtop draws through its guards, and as the
+    // contract 2 record an older droidtop reads.
+    return Reply.ok({
+      'record': recordOf(detail, addresses: addresses),
+      'items': [itemPageOf(detail, addresses: addresses)],
+    });
   }
 
   /// `library.updates` `download`, a job: the mirror the person picked on droidtop's record page, opened the way the
@@ -389,10 +394,12 @@ class F95Plugin {
 
   // ----------------------------------------------------------- settings (C)
 
-  Future<Map<String, dynamic>> _settings() async {
+  /// `ui.facets` `get`: the plugin's settings page (droidtop docs/plugin-api.md 1.10); no other target is declared.
+  Future<Map<String, dynamic>> _facets(String target) async {
+    if (target != settingsTarget) return {'facets': <Map<String, dynamic>>[]};
     final signedIn = await services.signedIn();
     final context = Context.fromJson(await services.readJson(_contextFile));
-    return settingsView(signedIn: signedIn, watched: context.active.length, syncedAt: context.siteSyncedAt);
+    return settingsFacets(signedIn: signedIn, watched: context.active.length, syncedAt: context.siteSyncedAt);
   }
 
   /// Reads the watch list from F95zone, sends it what was changed here, and
@@ -525,6 +532,66 @@ Map<String, dynamic> recordOf(ThreadDetail d, {Map<int, String> addresses = cons
       ],
     };
 
+/// The `metadata` bundle's status for each of F95Checker's words ([statuses]).
+const Map<String, String> metadataStatus = {
+  'In development': 'ongoing',
+  'Completed': 'completed',
+  'On hold': 'onhold',
+  'Abandoned': 'abandoned',
+};
+
+/// The thread as one item of droidtop's item page (droidtop docs/plugin-api.md 1.10, contract 3): its metadata,
+/// description, cover, mirrors and thread link as bundles, kept by droidtop for a day.
+Map<String, dynamic> itemPageOf(ThreadDetail d, {Map<int, String> addresses = const {}}) => {
+      'source': 'f95zone',
+      'id': '${d.id}',
+      'ttl': 86400,
+      'facets': [
+        {
+          'id': 'meta',
+          'kind': 'metadata',
+          'v': 1,
+          'title': d.name,
+          'version': ?d.version,
+          'developer': ?d.developer,
+          'engine': ?d.engine,
+          'status': ?metadataStatus[d.status],
+          if (d.score != null && d.score! > 0) 'rating': (d.score! / 5).clamp(0.0, 1.0),
+          'votes': ?d.votes,
+          if (d.tags.isNotEmpty) 'tags': d.tags,
+          if (d.lastUpdated != null && d.lastUpdated! > 0) 'updated': d.lastUpdated! * 1000,
+        },
+        if (d.description != null || d.changelog != null)
+          {'id': 'about', 'kind': 'description', 'v': 1, 'overview': ?d.description, 'changelog': ?d.changelog},
+        if (d.image case final String image when image.startsWith('https://'))
+          {'id': 'cover', 'kind': 'image', 'v': 1, 'role': 'cover', 'url': image, 'alt': d.name},
+        if (d.mirrors.isNotEmpty)
+          {
+            'id': 'dl',
+            'kind': 'download',
+            'v': 1,
+            'entries': [
+              for (var i = 0; i < d.mirrors.length; i++)
+                {
+                  'section': d.mirrors[i].section,
+                  'host': d.mirrors[i].label,
+                  'label': d.mirrors[i].label,
+                  'link': mirrorLink(i, d.mirrors[i]),
+                  if (addresses[i] case final String url) ...{'url': url, 'kind': 'page'},
+                },
+            ],
+          },
+        {
+          'id': 'links',
+          'kind': 'links',
+          'v': 1,
+          'entries': [
+            {'kind': 'source', 'label': 'F95zone thread', 'url': d.url},
+          ],
+        },
+      ],
+    };
+
 /// `library.sources` `form`: one search field.
 Map<String, dynamic> searchForm() => _view('Search F95zone', [
       {'type': 'text', 'id': 'query', 'title': 'Search', 'value': ''},
@@ -587,23 +654,33 @@ Map<String, dynamic> detailView(ThreadDetail d, {required bool signedIn}) {
   ]);
 }
 
-/// `ui.settings` `view`: the watch list. The F95zone account is droidtop's own account row on this plugin's page
-/// (droidtop docs/SPEC.md 12a, "A plugin's site account"), so the view draws no sign-in, account or sign-out row.
-Map<String, dynamic> settingsView({required bool signedIn, required int watched, required int syncedAt}) => _view('F95zone', [
-      if (signedIn)
-        {
-          'type': 'button',
-          'id': 'sync',
-          'title': 'Sync the watch list now',
-          'subtitle': '$watched watched threads${syncedAt > 0 ? '' : ', never synced'}',
-          'action': {'kind': 'job', 'op': 'syncWatched', 'title': 'Sync the F95zone watch list'},
-        }
-      else
-        {
-          'type': 'info',
-          'id': 'watched',
-          'title': 'Watch list',
-          'value': '$watched threads',
-          'subtitle': "Syncs with F95zone once you sign in on droidtop's F95zone account row, on this plugin's page.",
-        },
-    ]);
+/// The settings page's target (droidtop docs/plugin-api.md 1.10).
+const String settingsTarget = 'settings.page';
+
+/// `ui.facets` on the settings page: the watch list. The F95zone account is droidtop's own account row on this
+/// plugin's page (droidtop docs/SPEC.md 12a, "A plugin's site account"), so no facet signs in, names the account or
+/// signs out.
+Map<String, dynamic> settingsFacets({required bool signedIn, required int watched, required int syncedAt}) => {
+      'facets': [
+        if (signedIn)
+          {
+            'id': 'sync',
+            'kind': 'action',
+            'v': 1,
+            'targets': [settingsTarget],
+            'label': 'Sync the watch list now',
+            'sub': '$watched watched threads${syncedAt > 0 ? '' : ', never synced'}',
+            'call': {'op': 'syncWatched', 'kind': 'job'},
+          }
+        else
+          {
+            'id': 'watched',
+            'kind': 'info',
+            'v': 1,
+            'targets': [settingsTarget],
+            'label': 'Watch list',
+            'value': '$watched threads',
+            'sub': "Syncs with F95zone once you sign in on droidtop's F95zone account row, on this plugin's page.",
+          },
+      ],
+    };
