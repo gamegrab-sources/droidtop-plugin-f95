@@ -10,6 +10,9 @@ declared version moves with every change to the plugin's sources.
   its guards, and an older droidtop reads the `record` beside them as before.
 - The settings are `settings.page` facets in place of the `ui.settings` view: the watch list's sync job, or how many
   threads it holds and where to sign in.
+- The manifest says `"contractVersion": 3`: it needs facets, so a droidtop built before them refuses this version
+  and keeps the one installed, rather than install a plugin whose settings it cannot draw (droidtop docs/plugin-api.md
+  7, "Contract 3").
 
 ## 0.4.9
 

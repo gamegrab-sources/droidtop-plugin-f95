@@ -5,7 +5,7 @@
   "description": "Finds F95zone games, checks your linked games for new versions, and downloads them with your F95zone account.",
   "version": "0.5.0",
   "kind": "flutter_embed",
-  "contractVersion": 2,
+  "contractVersion": 3,
   "subscribedEvents": [
     "web.session.signed_in"
   ],
