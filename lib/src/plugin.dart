@@ -235,7 +235,13 @@ class F95Plugin {
     if (detail.mirrors.isNotEmpty && await services.signedIn()) {
       try {
         final page = await services.http(detail.url, session: true);
-        addresses = mirrorAddresses(detail, page.body);
+        if (guestPage(page.body)) {
+          // F95zone no longer honours the session droidtop keeps: say so by clearing it, so droidtop shows the account
+          // signed out and offers its sign-in, instead of links that cannot be had (droidtop Droidtop/tracker#599).
+          await _endSession();
+        } else {
+          addresses = mirrorAddresses(detail, page.body);
+        }
       } on HostError {
         // The page could not be read: the record keeps the mirrors as tokens for the download job.
       }
@@ -246,6 +252,15 @@ class F95Plugin {
       'record': recordOf(detail, addresses: addresses),
       'items': [itemPageOf(detail, addresses: addresses)],
     });
+  }
+
+  /// The session F95zone answered as a guest is over: cleared, so droidtop shows the account signed out.
+  Future<void> _endSession() async {
+    try {
+      await services.signOut();
+    } on HostError {
+      // An older droidtop, or web.session turned off: the next page read says the same.
+    }
   }
 
   /// `library.updates` `download`, a job: the mirror the person picked on droidtop's record page, opened the way the
@@ -271,7 +286,7 @@ class F95Plugin {
     final id = int.tryParse('${(args['ref'] as Map?)?['id'] ?? ''}');
     if (id == null) return {'ok': false, 'error': 'Missing thread'};
     if (!await services.signedIn()) {
-      return {'ok': false, 'error': 'Sign in to F95zone first.'};
+      return {'ok': false, 'error': signInForLinks};
     }
     final detail = await client.full(id);
     if (detail == null) return {'ok': false, 'error': 'That thread is private, moved or deleted'};
@@ -280,6 +295,10 @@ class F95Plugin {
     if (index < 0 || index >= detail.mirrors.length) return {'ok': false, 'error': 'Choose where to download from first'};
     final mirror = detail.mirrors[index];
     final page = await services.http(detail.url, session: true);
+    if (guestPage(page.body)) {
+      await _endSession();
+      return {'ok': false, 'error': signInForLinks};
+    }
     final link = resolveMirror(page.body, mirror.selector);
     if (link == null) {
       return {'ok': false, 'error': 'The thread page has no ${mirror.label} link now; try another mirror'};
@@ -484,6 +503,9 @@ Map<String, dynamic> _view(String title, List<Map<String, dynamic>> items, {Stri
         {'id': 'main', 'items': items},
       ],
     };
+
+/// What a download needs from a person F95zone does not know as a member: download links are for members only.
+const signInForLinks = 'Sign in to F95zone to get download links';
 
 /// A record page's link for mirror [index]: its place and its label, so a thread that changed since is noticed.
 String mirrorLink(int index, Mirror mirror) => '$index:${mirror.label}';

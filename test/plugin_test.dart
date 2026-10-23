@@ -45,6 +45,9 @@ class FakeHost implements Host {
       case 'web.session set_account':
         account = args['name'] as String;
         return Reply.ok({'saved': signedIn});
+      case 'web.session clear':
+        signedIn = false;
+        return Reply.ok({'cleared': true});
       case 'web.session open_in_session':
         return Reply.ok({'captured': captured != null, if (captured != null) 'download': captured});
     }
@@ -294,6 +297,31 @@ void main() {
     expect(jsonDecode((result['values'] as Map)['download'] as String), host.captured);
     final moved = await plugin.job('library.updates', 'download', {'source': 'f95zone', 'id': '93340', 'link': '1:MEGA'});
     expect(moved['ok'], isFalse, reason: 'a link the thread no longer lists at that place is refused');
+  });
+
+  test('a thread page served to a guest is told from a member\'s and from a browser check', () {
+    expect(guestPage('<!DOCTYPE html><html id="XF" lang="en-US" data-logged-in="false" class="has-no-js">'), isTrue);
+    expect(guestPage('<html id="XF" data-logged-in="true">'), isFalse);
+    expect(guestPage('<html><head><title>Just a moment...</title>'), isFalse, reason: 'not XenForo: not a guest page');
+  });
+
+  test('a session F95zone answers as a guest is cleared, and the download asks for a sign-in (droidtop #599)', () async {
+    final host = FakeHost();
+    final plugin = pluginOn(host);
+    host.web['https://api.f95checker.dev/full/93340?ts=0'] = [200, jsonEncode(fullAnswer)];
+    host.signedIn = true;
+    host.web['https://f95zone.to/threads/93340/'] = [200, '<html id="XF" data-logged-in="false"><a href="https://f95zone.to/login/">Log in</a>'];
+    final reply = await plugin.handle({'point': 'library.updates', 'op': 'record', 'args': {'source': 'f95zone', 'id': '93340'}});
+    final downloads = ((reply['data'] as Map)['record'] as Map)['downloads'] as List;
+    expect(downloads.every((d) => !(d as Map).containsKey('url')), isTrue);
+    expect(host.signedIn, isFalse, reason: 'the dead session is cleared, so droidtop shows the account signed out');
+
+    host.signedIn = true;
+    final result = await plugin.job('library.updates', 'download', {'source': 'f95zone', 'id': '93340', 'link': '1:DATANODES'});
+    expect(result, {'ok': false, 'error': signInForLinks});
+    expect(host.signedIn, isFalse);
+    final signedOut = await plugin.job('library.updates', 'download', {'source': 'f95zone', 'id': '93340', 'link': '1:DATANODES'});
+    expect(signedOut['error'], signInForLinks, reason: 'never "no link now" for a guest');
   });
 
   test("signed in, the record carries each mirror's address for droidtop to open (droidtop #599)", () async {

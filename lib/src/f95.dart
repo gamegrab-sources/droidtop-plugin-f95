@@ -412,6 +412,10 @@ String? resolveMirror(String html, String selector) {
   return null;
 }
 
+/// Whether [html] is a thread page F95zone served to a guest (XenForo marks its `<html>` `data-logged-in="false"`):
+/// download links are for members, so a guest page has none. A page that is not XenForo's (a browser check) is not one.
+bool guestPage(String html) => RegExp(r"""<html\b[^>]*\bdata-logged-in\s*=\s*["']false["']""", caseSensitive: false).hasMatch(html);
+
 String _unescape(String s) => s.replaceAll('&amp;', '&').replaceAll('&quot;', '"').replaceAll('&#039;', "'");
 
 /// A fast check's answer: thread -> last-changed stamp; null when the index

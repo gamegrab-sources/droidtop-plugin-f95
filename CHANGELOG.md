@@ -3,6 +3,14 @@
 Every working build of `main` is a release (`v<version>-<CI run>`); the
 declared version moves with every change to the plugin's sources.
 
+## 0.5.3
+
+- A thread page F95zone served to a guest (its `<html>` says `data-logged-in="false"`) means the session droidtop keeps
+  is no longer honoured, and download links are for members: the session is cleared, so droidtop shows the account
+  signed out and offers its sign-in, the record carries no addresses, and a download says "Sign in to F95zone to get
+  download links" instead of "The thread page has no <host> link now" (droidtop Droidtop/tracker#599, the console
+  updating Bare Witness).
+
 ## 0.5.2
 
 - Each mirror names the systems its heading does (`systems`: "Win/Linux" is Windows and Linux, "Android" is Android),
