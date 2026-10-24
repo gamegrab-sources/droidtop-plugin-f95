@@ -390,6 +390,33 @@ void main() {
     });
   });
 
+  test('featured lists the Latest Updates newest first, banner as box art, and nothing for a console (droidtop #612)', () async {
+    final host = FakeHost();
+    host.web['https://f95zone.to/sam/latest_alpha/latest_data.php?cmd=list&cat=games&page=1&sort=date&rows=2'] = [
+      200,
+      jsonEncode({
+        'status': 'ok',
+        'msg': {
+          'data': [
+            {'thread_id': 93340, 'title': 'Eternum', 'creator': 'Caribdis', 'version': 'v0.9.5', 'cover': 'https://attachments.f95zone.to/eternum.png'},
+            {'thread_id': 5, 'title': 'No Picture', 'creator': 'Someone'},
+          ],
+        },
+      }),
+    ];
+    final plugin = pluginOn(host);
+    final results = data(await plugin.handle({'point': 'library.sources', 'op': 'featured', 'args': {'limit': 2}}))['results'] as List;
+    expect(results.map((r) => (r as Map)['title']), ['Eternum', 'No Picture']);
+    final art = ((results.first as Map)['facets'] as List).first as Map;
+    expect(art['role'], 'cover');
+    expect(art['url'], 'https://attachments.f95zone.to/eternum.png');
+    expect((results.last as Map).containsKey('facets'), isFalse);
+
+    final console = data(await plugin.handle({'point': 'library.sources', 'op': 'featured', 'args': {'platform': 'snes', 'limit': 2}}));
+    expect(console['results'], isEmpty);
+    expect(host.requested.length, 1, reason: 'a console page asks F95zone nothing');
+  });
+
   test('an op that is not offered says so with droidtop\'s own error code', () async {
     final reply = await pluginOn(FakeHost()).handle({'point': 'library.artwork', 'op': 'list', 'args': {}});
     expect(reply['ok'], isFalse);

@@ -3,6 +3,14 @@
 Every working build of `main` is a release (`v<version>-<CI run>`); the
 declared version moves with every change to the plugin's sources.
 
+## 0.6.0
+
+- `featured` (droidtop docs/plugin-api.md 1.8, Droidtop/tracker#612): F95zone's Latest Updates, newest first, for
+  droidtop's Get new games page, at most the `limit` it asks for (up to 60). A console's page (a `platform` other than
+  PC, Windows or Linux) gets none.
+- A `search` or `featured` result carries its banner as an `image` facet with role `cover`, first, so droidtop shows it
+  as the game's box art.
+
 ## 0.5.3
 
 - A thread page F95zone served to a guest (its `<html>` says `data-logged-in="false"`) means the session droidtop keeps

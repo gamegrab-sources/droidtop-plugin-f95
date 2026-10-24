@@ -52,6 +52,8 @@ class F95Plugin {
           return Reply.ok(searchForm());
         case 'library.sources search':
           return await _search(args);
+        case 'library.sources featured':
+          return await _featured(args);
         case 'library.sources detail':
           return await _detail(args);
         case 'library.metadata match':
@@ -211,6 +213,16 @@ class F95Plugin {
     if (sanitizeQuery(query).isEmpty) return Reply.ok({'results': <Object>[]});
     final results = await client.search(query);
     return Reply.ok({'results': results.map(searchResult).toList()});
+  }
+
+  /// `library.sources` `featured` (droidtop docs/plugin-api.md 1.8, Droidtop/tracker#612): F95zone's Latest Updates,
+  /// newest first, for droidtop's Get new games page. Only PC games are listed, so a console's page gets none.
+  Future<Map<String, dynamic>> _featured(Map<String, dynamic> args) async {
+    final platform = (args['platform'] as String?)?.trim() ?? '';
+    if (!featuredPlatforms.contains(platform)) return Reply.ok({'results': <Object>[]});
+    final limit = ((args['limit'] as num?)?.toInt() ?? 20).clamp(1, 60);
+    final results = await client.latest(rows: limit);
+    return Reply.ok({'results': results.take(limit).map(searchResult).toList()});
   }
 
   Future<Map<String, dynamic>> _detail(Map<String, dynamic> args) async {
@@ -636,12 +648,21 @@ Map<String, dynamic> searchForm() => _view('Search F95zone', [
     ]);
 
 /// One `library.sources` `search` result; `ref` is only the thread id.
+/// The platforms `featured` lists for: any (none named), and the PC ones F95zone's games are for.
+const featuredPlatforms = {'', 'pc', 'windows', 'linux'};
+
+/// A result of `search` or `featured`. Its banner is its box art (contract 3 facets, droidtop docs/plugin-api.md 1.8),
+/// first among its facets.
 Map<String, dynamic> searchResult(ThreadSummary t) => {
       'id': '${t.id}',
       'title': t.title,
       'subtitle': t.creator,
       'columns': [?t.version],
       'ref': {'id': '${t.id}'},
+      if (t.cover != null)
+        'facets': [
+          {'id': 'cover', 'kind': 'image', 'v': 1, 'role': 'cover', 'url': t.cover, 'alt': t.title},
+        ],
     };
 
 /// `library.sources` `detail`: what the thread is, a picker over its

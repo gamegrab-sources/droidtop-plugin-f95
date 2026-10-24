@@ -462,12 +462,18 @@ class F95Client {
   Future<List<ThreadSummary>> search(String query, {int rows = 30}) async {
     final clean = sanitizeQuery(query);
     if (clean.isEmpty) return const [];
+    return _feed({'search': clean, 'sort': 'likes'}, rows);
+  }
+
+  /// The games F95zone's Latest Updates page lists first: the newest updates, as the site shows them.
+  Future<List<ThreadSummary>> latest({int rows = 20}) => _feed({'sort': 'date'}, rows);
+
+  Future<List<ThreadSummary>> _feed(Map<String, String> query, int rows) async {
     final uri = Uri.https('f95zone.to', '/sam/latest_alpha/latest_data.php', {
       'cmd': 'list',
       'cat': 'games',
       'page': '1',
-      'search': clean,
-      'sort': 'likes',
+      ...query,
       'rows': '$rows',
     });
     await _spaced();
@@ -475,7 +481,7 @@ class F95Client {
     if (answer.status != 200) throw HostError('FAILED', httpError('F95zone', answer.status));
     final root = jsonDecode(answer.body);
     if (root is! Map || root['status']?.toString() != 'ok') {
-      throw HostError('FAILED', 'F95zone refused the search. Try again later.');
+      throw HostError('FAILED', query.containsKey('search') ? 'F95zone refused the search. Try again later.' : 'F95zone did not list its latest updates. Try again later.');
     }
     final data = ((root['msg'] as Map?)?['data'] as List?) ?? const [];
     return data.whereType<Map>().map((m) => ThreadSummary.fromFeed(m.cast<String, dynamic>())).whereType<ThreadSummary>().toList();
