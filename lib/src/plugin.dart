@@ -315,13 +315,43 @@ class F95Plugin {
     if (link == null) {
       return {'ok': false, 'error': 'The thread page has no ${mirror.label} link now; try another mirror'};
     }
-    final download = await services.openInSession(link);
+    // F95zone wraps download links in masked redirects (f95zone.to/masked/...).
+    // The real host URL is revealed by a POST from the signed-in page.
+    // Resolve the masked link through the signed-in web session first.
+    final resolvedLink = await _resolveMaskedLink(link);
+    final download = await services.openInSession(resolvedLink);
     if (download == null) return {'ok': false, 'error': 'No download was started'};
     return _done('Downloading ${detail.name}', {
       'download': jsonEncode(download),
       // droidtop pins the placed game to this engine's player (plugin-api 1.6, engine hint).
       'engine': ?detail.engineId,
     });
+  }
+
+  /// Resolves a masked F95zone link (f95zone.to/masked/...) through the signed-in web session.
+  /// The real host URL is revealed by a POST from the signed-in page; a plain GET doesn't reveal it.
+  Future<String> _resolveMaskedLink(String maskedLink) async {
+    // If it's not a masked link, return as-is
+    if (!maskedLink.contains('f95zone.to/masked/')) {
+      return maskedLink;
+    }
+    // POST to the masked link from the signed-in session to get the real URL
+    final response = await services.http(
+      maskedLink,
+      method: 'POST',
+      session: true,
+      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      body: '',
+    );
+    if (response.status == 200) {
+      // The response should contain the real URL
+      final realUrl = response.body.trim();
+      if (realUrl.startsWith('http')) {
+        return realUrl;
+      }
+    }
+    // Fallback: return original if resolution fails
+    return maskedLink;
   }
 
   // ----------------------------------------------------------- metadata (A3)
