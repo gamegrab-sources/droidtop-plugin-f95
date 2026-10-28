@@ -162,6 +162,8 @@ void main() {
     expect(resolveMirror(html, "//a[starts-with(@href,'https://akirabox.com/')][2]"), 'https://akirabox.com/two');
     expect(resolveMirror(html, "//a[starts-with(@href,'https://mega.nz/')][1]"), isNull);
     expect(resolveMirror(html, '//div[@id="x"]'), isNull);
+    // A masked link is the mirror's own address (Droidtop/tracker#650).
+    expect(resolveMirror(html, 'https://f95zone.to/masked/abc/1/2'), 'https://f95zone.to/masked/abc/1/2');
   });
 
   test('a fast check reads stamps, and a refused batch is null', () {

@@ -3,6 +3,13 @@
 Every working build of `main` is a release (`v<version>-<CI run>`); the
 declared version moves with every change to the plugin's sources.
 
+## 0.6.1
+
+- A mirror F95Checker's index gives as a masked link (`https://f95zone.to/masked/...`) is its own link: Download and
+  the record page's mirror open it in droidtop's view, where the person solves the CAPTCHA and taps the host link, and
+  droidtop hands that link to its host resolvers. Before, such a mirror matched nothing on the thread page and
+  Download said the thread had no link (Droidtop/tracker#650).
+
 ## 0.6.0
 
 - `featured` (droidtop docs/plugin-api.md 1.8, Droidtop/tracker#612): F95zone's Latest Updates, newest first, for

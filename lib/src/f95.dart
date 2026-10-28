@@ -394,9 +394,14 @@ String folderTitle(String folder) {
 
 /// The link a mirror selector picks out of a thread page: the supported form
 /// is F95Checker's `//a[starts-with(@href,'PREFIX')][N]` (the Nth link whose
-/// address starts with PREFIX). Null when the page has no such link or the
-/// selector is another form.
+/// address starts with PREFIX). A mirror the index gives as an F95zone address
+/// (a masked link, `https://f95zone.to/masked/...`) is its own link, with
+/// nothing to look up on the page: droidtop opens it in its view, where the
+/// person solves the CAPTCHA and taps the host link (Droidtop/tracker#650).
+/// Null when the page has no such link or the selector is another form.
 String? resolveMirror(String html, String selector) {
+  final given = selector.trim();
+  if (given.startsWith('https://f95zone.to/')) return given;
   final match = RegExp(r"""^//a\[starts-with\(@href,\s*['"]([^'"]+)['"]\)\](?:\[(\d+)\])?$""").firstMatch(selector.trim());
   if (match == null) return null;
   final prefix = match.group(1)!;
