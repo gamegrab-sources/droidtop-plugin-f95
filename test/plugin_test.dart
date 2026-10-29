@@ -62,6 +62,10 @@ Map<String, dynamic> data(Map<String, dynamic> reply) {
   return (reply['data'] as Map).cast<String, dynamic>();
 }
 
+/// One facet of the record reply's item.page bundles.
+Map itemFacet(Map reply, String id) =>
+    ((((reply['data'] as Map)['items'] as List).first as Map)['facets'] as List).cast<Map>().firstWhere((f) => f['id'] == id);
+
 void main() {
   test('a thread is read from the link a browser shows, the short form and the bare number', () {
     expect(F95Thread.parse('https://f95zone.to/threads/star-harbor-v0-9-5-somedev.12345/'), 12345);
@@ -151,8 +155,6 @@ void main() {
     final download = (item['facets'] as List).cast<Map>().firstWhere((f) => f['kind'] == 'download');
     final entries = (download['entries'] as List).cast<Map>();
     expect(entries.every((e) => (e['systems'] as List).join(',') == 'windows,linux'), isTrue);
-    final record = recordOf(d);
-    expect(((record['downloads'] as List).first as Map)['systems'], ['windows', 'linux']);
   });
 
   test("a mirror selector picks its link out of the thread page", () {
@@ -283,13 +285,15 @@ void main() {
       jsonEncode({...fullAnswer, 'tags': '[2, 139, 9999]', 'votes': '310', 'last_updated': '1700000000'}),
     ];
     final reply = await plugin.handle({'point': 'library.updates', 'op': 'record', 'args': {'source': 'f95zone', 'id': '93340'}});
-    final record = (reply['data'] as Map)['record'] as Map;
-    expect(record['title'], 'Eternum');
-    expect(record['tags'], ['2dcg', 'voyeurism'], reason: 'a number F95Checker does not name is left out');
-    expect(record['votes'], 310);
-    expect(record['updated'], 1700000000000);
-    expect((record['downloads'] as List).map((d) => (d as Map)['link']), ['0:AKIRABOX', '1:DATANODES']);
-    expect((record['downloads'] as List).first, containsPair('section', 'Win/Linux'));
+    expect((reply['data'] as Map).containsKey('record'), isFalse, reason: 'contract 3: the item.page bundles only');
+    final meta = itemFacet(reply, 'meta');
+    expect(meta['title'], 'Eternum');
+    expect(meta['tags'], ['2dcg', 'voyeurism'], reason: 'a number F95Checker does not name is left out');
+    expect(meta['votes'], 310);
+    expect(meta['updated'], 1700000000000);
+    final entries = itemFacet(reply, 'dl')['entries'] as List;
+    expect(entries.map((d) => (d as Map)['link']), ['0:AKIRABOX', '1:DATANODES']);
+    expect(entries.first, containsPair('section', 'Win/Linux'));
 
     host.signedIn = true;
     host.web['https://f95zone.to/threads/93340/'] = [200, '<a href="https://datanodes.to/f/2">DATANODES</a>'];
@@ -299,6 +303,24 @@ void main() {
     expect(jsonDecode((result['values'] as Map)['download'] as String), host.captured);
     final moved = await plugin.job('library.updates', 'download', {'source': 'f95zone', 'id': '93340', 'link': '1:MEGA'});
     expect(moved['ok'], isFalse, reason: 'a link the thread no longer lists at that place is refused');
+  });
+
+  test("the record page's watch switch watches the thread here and sends it to F95zone", () async {
+    final host = FakeHost();
+    final plugin = pluginOn(host);
+    host.web['https://api.f95checker.dev/full/93340?ts=0'] = [200, jsonEncode(fullAnswer)];
+    Future<Map> watch() async =>
+        itemFacet(await plugin.handle({'point': 'library.updates', 'op': 'record', 'args': {'source': 'f95zone', 'id': '93340'}}), 'watch');
+    final off = await watch();
+    expect(off['kind'], 'toggle');
+    expect(off['value'], isFalse);
+    expect(off['call'], containsPair('kind', 'job'));
+    // Signed out: kept here, and said so.
+    final kept = await plugin.job('ui.facets', 'setWatched', {...(off['call'] as Map)['args'] as Map<String, dynamic>, 'value': true});
+    expect((kept['values'] as Map)['message'], contains('Sign in to F95zone'));
+    expect((await watch())['value'], isTrue);
+    final context = Context.fromJson(jsonDecode(utf8.decode(host.files['context.json']!)) as Map<String, dynamic>);
+    expect(context.watched[93340]?.name, 'Eternum');
   });
 
   test('a thread page served to a guest is told from a member\'s and from a browser check', () {
@@ -314,7 +336,7 @@ void main() {
     host.signedIn = true;
     host.web['https://f95zone.to/threads/93340/'] = [200, '<html id="XF" data-logged-in="false"><a href="https://f95zone.to/login/">Log in</a>'];
     final reply = await plugin.handle({'point': 'library.updates', 'op': 'record', 'args': {'source': 'f95zone', 'id': '93340'}});
-    final downloads = ((reply['data'] as Map)['record'] as Map)['downloads'] as List;
+    final downloads = itemFacet(reply, 'dl')['entries'] as List;
     expect(downloads.every((d) => !(d as Map).containsKey('url')), isTrue);
     expect(host.signedIn, isFalse, reason: 'the dead session is cleared, so droidtop shows the account signed out');
 
@@ -333,7 +355,7 @@ void main() {
     host.signedIn = true;
     host.web['https://f95zone.to/threads/93340/'] = [200, '<a href="https://datanodes.to/f/2">DATANODES</a>'];
     final reply = await plugin.handle({'point': 'library.updates', 'op': 'record', 'args': {'source': 'f95zone', 'id': '93340'}});
-    final downloads = ((reply['data'] as Map)['record'] as Map)['downloads'] as List;
+    final downloads = itemFacet(reply, 'dl')['entries'] as List;
     expect((downloads[1] as Map)['url'], 'https://datanodes.to/f/2');
     expect((downloads[0] as Map).containsKey('url'), isFalse, reason: 'the page has no AKIRABOX link: that mirror stays a token');
     expect((downloads[0] as Map)['link'], '0:AKIRABOX');

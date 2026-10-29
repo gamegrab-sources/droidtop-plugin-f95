@@ -82,6 +82,8 @@ class F95Plugin {
           return _done(ok ? 'Signed in to F95zone' : 'Not signed in');
         case 'ui.facets syncWatched':
           return _done(await syncWatched());
+        case 'ui.facets setWatched':
+          return _done(await setWatched(args));
         case 'library.sources acquire':
           return await _acquire(args);
         case 'library.updates download':
@@ -258,11 +260,11 @@ class F95Plugin {
         // The page could not be read: the record keeps the mirrors as tokens for the download job.
       }
     }
-    // The record twice: as contract 3's item.page bundles, which droidtop draws through its guards, and as the
-    // contract 2 record an older droidtop reads.
+    // Contract 3's item.page bundles only, which droidtop draws through its guards (Droidtop/tracker#602), with the
+    // watch switch: is this thread on the person's watch list.
+    final context = Context.fromJson(await services.readJson(_contextFile));
     return Reply.ok({
-      'record': recordOf(detail, addresses: addresses),
-      'items': [itemPageOf(detail, addresses: addresses)],
+      'items': [itemPageOf(detail, addresses: addresses, watched: context.watched[id]?.watched == true)],
     });
   }
 
@@ -433,6 +435,32 @@ class F95Plugin {
     return settingsFacets(signedIn: signedIn, watched: context.active.length, syncedAt: context.siteSyncedAt);
   }
 
+  /// The record page's watch switch, a job (droidtop docs/plugin-api.md 1.10, item.page `toggle`): the thread is
+  /// watched or unwatched here at once, then the watch list is synced, which sends the change to F95zone.
+  Future<String> setWatched(Map<String, dynamic> args) async {
+    final id = int.tryParse('${args['id'] ?? ''}');
+    if (id == null) return 'Missing thread';
+    final on = args['value'] == true || '${args['value']}' == 'true';
+    final now = _now();
+    final context = Context.fromJson(await services.readJson(_contextFile));
+    final known = context.watched[id];
+    if (known == null) {
+      context.watched[id] = WatchedThread(id: id, name: '${args['name'] ?? ''}', changedAt: now, watched: on);
+    } else {
+      known
+        ..watched = on
+        ..changedAt = now
+        ..fieldAt['watched'] = now;
+    }
+    await services.writeJson(_contextFile, context.toJson());
+    if (!await services.signedIn()) {
+      return on
+          ? 'On your watch list here. Sign in to F95zone to send it there'
+          : 'Off your watch list here. Sign in to F95zone to send it there';
+    }
+    return await syncWatched();
+  }
+
   /// Reads the watch list from F95zone, sends it what was changed here, and
   /// keeps the result as the plugin's context (docs/CONTEXT.md).
   Future<String> syncWatched() async {
@@ -537,36 +565,6 @@ Map<int, String> mirrorAddresses(ThreadDetail d, String html) => {
         if (resolveMirror(html, d.mirrors[i].selector) case final String url when url.startsWith('https://') && url.length <= 2048) i: url,
     };
 
-/// The thread as droidtop's record page takes it (droidtop docs/plugin-api.md 3 A6 `record`); [addresses] are the
-/// mirrors' links as the thread page has them, which droidtop opens itself.
-Map<String, dynamic> recordOf(ThreadDetail d, {Map<int, String> addresses = const {}}) => {
-      'id': '${d.id}',
-      'title': d.name,
-      'url': d.url,
-      'version': ?d.version,
-      'developer': ?d.developer,
-      'status': ?d.status,
-      if (d.score != null && d.score! > 0) 'rating': (d.score! / 5).clamp(0.0, 1.0),
-      'votes': ?d.votes,
-      if (d.tags.isNotEmpty) 'tags': d.tags,
-      // F95Checker's stamp is in seconds.
-      if (d.lastUpdated != null && d.lastUpdated! > 0) 'updated': d.lastUpdated! * 1000,
-      'cover': ?d.image,
-      'overview': ?d.description,
-      'changelog': ?d.changelog,
-      'downloads': [
-        for (var i = 0; i < d.mirrors.length; i++)
-          {
-            'section': d.mirrors[i].section,
-            'host': d.mirrors[i].label,
-            'label': d.mirrors[i].label,
-            'link': mirrorLink(i, d.mirrors[i]),
-            'url': ?addresses[i],
-            if (systemsOf(d.mirrors[i].section) case final systems when systems.isNotEmpty) 'systems': systems,
-          },
-      ],
-    };
-
 /// The systems a thread's download heading names ("Win/Linux" is Windows and Linux), in droidtop's words and order
 /// (droidtop docs/plugin-api.md 1.10, the download bundle's `systems`; Droidtop/tracker#617). Empty for a heading that
 /// names none ("Extras"), which droidtop shows with every system.
@@ -591,7 +589,7 @@ const Map<String, String> metadataStatus = {
 
 /// The thread as one item of droidtop's item page (droidtop docs/plugin-api.md 1.10, contract 3): its metadata,
 /// description, cover, mirrors and thread link as bundles, kept by droidtop for a day.
-Map<String, dynamic> itemPageOf(ThreadDetail d, {Map<int, String> addresses = const {}}) => {
+Map<String, dynamic> itemPageOf(ThreadDetail d, {Map<int, String> addresses = const {}, bool? watched}) => {
       'source': 'f95zone',
       'id': '${d.id}',
       'ttl': 86400,
@@ -639,6 +637,20 @@ Map<String, dynamic> itemPageOf(ThreadDetail d, {Map<int, String> addresses = co
             {'kind': 'source', 'label': 'F95zone thread', 'url': d.url},
           ],
         },
+        if (watched != null)
+          {
+            'id': 'watch',
+            'kind': 'toggle',
+            'v': 1,
+            'label': 'On my watch list',
+            'sub': 'Synced with your F95zone watch list',
+            'value': watched,
+            'call': {
+              'op': 'setWatched',
+              'kind': 'job',
+              'args': {'id': '${d.id}', 'name': d.name},
+            },
+          },
       ],
     };
 

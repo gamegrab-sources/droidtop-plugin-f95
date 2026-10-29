@@ -3,6 +3,13 @@
 Every working build of `main` is a release (`v<version>-<CI run>`); the
 declared version moves with every change to the plugin's sources.
 
+## 0.7.0
+
+- A switch on the record page, "On my watch list" (droidtop docs/plugin-api.md 1.10, an `item.page` `toggle`,
+  Droidtop/tracker#602): turning it on or off watches or unwatches the thread here at once, then syncs the watch list,
+  which sends the change to F95zone. Signed out, the change is kept here and goes to F95zone at the next sync.
+- `record` answers with the `item.page` bundles only: the contract 2 `record` an older droidtop read is gone.
+
 ## 0.6.1
 
 - A mirror F95Checker's index gives as a masked link (`https://f95zone.to/masked/...`) is its own link: Download and
