@@ -3,7 +3,7 @@
   "origin": "gamegrab",
   "label": "F95zone",
   "description": "Finds F95zone games, checks your linked games for new versions, and downloads them with your F95zone account.",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "kind": "flutter_embed",
   "contractVersion": 3,
   "subscribedEvents": [

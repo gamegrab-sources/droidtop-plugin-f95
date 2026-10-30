@@ -65,7 +65,8 @@ class F95Plugin {
       }
       return Reply.error('UNSUPPORTED', 'not offered: $point $op');
     } on HostError catch (e) {
-      return Reply.error(e.code == 'PERMISSION_DENIED' ? 'PERMISSION_DENIED' : 'FAILED', e.message);
+      // The shared codes pass through as themselves (docs/plugin-api.md 1.11, point 4); anything else is FAILED.
+      return Reply.error(sharedCodes.contains(e.code) ? e.code : 'FAILED', e.message);
     } on FormatException {
       return Reply.error('FAILED', unreadablePage);
     }
@@ -133,28 +134,56 @@ class F95Plugin {
     final ids = ((args['ids'] as List?) ?? const []).map((e) => int.tryParse('$e')).whereType<int>().toSet().toList();
     final state = PluginState.fromJson(await services.readJson(_stateFile));
     final f95 = client;
-    final stamps = await f95.fastCheck(ids);
+    // F95Checker's index first; when it cannot answer (down, a browser check, a web page instead of data), each thread
+    // is read from F95zone itself (Droidtop/tracker#837), and what the index said is kept for the log line.
+    String? indexProblem;
+    Map<int, int> stamps;
+    try {
+      stamps = await f95.fastCheck(ids);
+    } on HostError catch (e) {
+      indexProblem = e.message;
+      stamps = const {};
+    }
     final answers = <Map<String, dynamic>>[];
     final news = <String>[];
     for (final id in ids) {
       final last = state.checks[id];
       final previous = last?.version;
-      final stamp = stamps[id];
-      if (stamp == null) {
-        answers.add({'id': '$id', 'gone': true});
-        continue;
-      }
       var check = last ?? ThreadCheck(id: id);
-      if (last == null || last.version == null || stamp > last.stamp) {
-        final detail = await f95.full(id, stamp: stamp);
-        if (detail == null) {
+      if (indexProblem == null) {
+        final stamp = stamps[id];
+        if (stamp == null) {
+          answers.add({'id': '$id', 'gone': true});
+          continue;
+        }
+        if (last == null || last.version == null || stamp > last.stamp) {
+          ThreadDetail? detail;
+          try {
+            detail = await f95.full(id, stamp: stamp);
+          } on HostError catch (e) {
+            indexProblem = e.message;
+          }
+          if (indexProblem == null) {
+            if (detail == null) {
+              answers.add({'id': '$id', 'gone': true});
+              continue;
+            }
+            check
+              ..stamp = stamp
+              ..version = detail.version
+              ..title = detail.name;
+          }
+        }
+      }
+      if (indexProblem != null) {
+        final page = await f95.fromPage(id);
+        if (page == null) {
           answers.add({'id': '$id', 'gone': true});
           continue;
         }
         check
-          ..stamp = stamp
-          ..version = detail.version
-          ..title = detail.name;
+          ..version = page.version
+          ..title = page.name;
       }
       state.checks[id] = check;
       final version = check.version;
@@ -533,7 +562,10 @@ Map<int, String> watchedThreads(String html) {
 // --------------------------------------------------------------- views
 
 /// A page the plugin could not read, in plain words; what the parser said stays off the screen.
-const String unreadablePage = 'F95zone sent a page this plugin could not read. Try again later.';
+const String unreadablePage = 'F95zone sent a page this plugin could not read.';
+
+/// The error codes droidtop draws in its own words (docs/plugin-api.md 1.11, point 4), passed through as they are.
+const Set<String> sharedCodes = {'PERMISSION_DENIED', 'SIGN_IN_REQUIRED', 'BROWSER_CHECK_REQUIRED', 'RATE_LIMITED', 'NOT_FOUND'};
 
 Map<String, dynamic> _view(String title, List<Map<String, dynamic>> items, {String? subtitle}) => {
       'view': 1,

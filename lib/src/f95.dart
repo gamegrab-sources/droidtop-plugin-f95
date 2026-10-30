@@ -430,7 +430,7 @@ Map<int, int>? parseFastCheck(String body, List<int> asked) {
   try {
     parsed = jsonDecode(body);
   } on FormatException {
-    throw HostError('FAILED', "F95Checker's index sent something this plugin could not read. Try again later.");
+    throw HostError('FAILED', indexNotData(body));
   }
   if (parsed is! Map) return null;
   final error = parsed['INDEX_ERROR']?.toString() ?? '';
@@ -445,6 +445,62 @@ Map<int, int>? parseFastCheck(String body, List<int> asked) {
 
 /// The index's own downtime pages come back as HTML with a 200.
 bool indexDown(String body) => body.contains('502: Bad gateway') || body.contains('521: Web server is down');
+
+/// Whether [html] is a browser check (Cloudflare's "Just a moment" page) rather than the page or data asked for.
+bool checkPage(String html) {
+  final lower = html.toLowerCase();
+  return lower.contains('just a moment') || lower.contains('challenge-platform') || lower.contains('cf-chl') ||
+      lower.contains('checking your browser');
+}
+
+/// Why the index's answer is not data, in one plain sentence (Droidtop/tracker#837): a browser check, a web page,
+/// or nothing at all.
+String indexNotData(String body) {
+  if (body.trim().isEmpty) return "F95Checker's index sent nothing back.";
+  if (checkPage(body)) return "F95Checker's index answered with a browser check instead of data.";
+  return "F95Checker's index answered with a web page instead of data.";
+}
+
+/// A thread page's name and version, from its `<title>` ("Name [v0.5.1] [Developer] | F95zone"): the first bracket
+/// that reads as a version is the version, and the name is what comes before the brackets. Null when the page has
+/// no such title (a browser check, a guest's error page, a layout F95zone changed).
+({String name, String? version})? parseThreadTitle(String html) {
+  final raw = RegExp(r'<title[^>]*>([^<]*)</title>', caseSensitive: false).firstMatch(html)?.group(1);
+  if (raw == null) return null;
+  final title = _unescape(raw).replaceFirst(RegExp(r'\s*\|\s*F95zone\s*$', caseSensitive: false), '').trim();
+  final brackets = RegExp(r'\[([^\]]*)\]').allMatches(title).map((m) => m.group(1)!.trim()).toList();
+  final firstBracket = title.indexOf('[');
+  // The name runs to the first bracket.
+  var name = (firstBracket < 0 ? title : title.substring(0, firstBracket)).trim();
+  // F95zone's prefixes ("VN - Ren'Py - Completed - Name") are taken off one at a time while they are prefixes.
+  while (true) {
+    final dash = name.indexOf(' - ');
+    if (dash < 0 || !_titlePrefixes.contains(name.substring(0, dash).trim().toLowerCase())) break;
+    name = name.substring(dash + 3).trim();
+  }
+  if (name.isEmpty || name.toLowerCase() == 'f95zone') return null;
+  final version = brackets.firstWhere(
+    (b) => RegExp(r'^(v\s*\d|\d|ep(isode)?\.?\s*\d|ch(apter)?\.?\s*\d|final|season\s*\d)', caseSensitive: false).hasMatch(b),
+    orElse: () => '',
+  );
+  return (name: name, version: versionOrNull(version));
+}
+
+/// The words F95zone puts before a thread's name in its title: the kind, the engine and the status.
+const Set<String> _titlePrefixes = {
+  'vn', 'ren\'py', 'rpgm', 'unity', 'html', 'others', 'completed', 'onhold', 'abandoned', 'unreal engine', 'flash',
+  'qsp', 'rags', 'java', 'tads', 'webgl', 'wolf rpg', 'adrift', 'collection', 'mod', 'cheat mod', 'tool', 'godot',
+  'ren\'py mod', 'twine', 'siterip', 'manga', 'comics', 'cg', 'animation', 'pinup', 'gif', 'video', 'ai cg', 'renpy',
+};
+
+/// [body] decoded, or the plain reason it is not data.
+Object? _indexJson(String body) {
+  try {
+    return jsonDecode(body);
+  } on FormatException {
+    throw HostError('FAILED', indexNotData(body));
+  }
+}
 
 /// The client for F95zone's Latest Updates feed and F95Checker's public
 /// index, with the pacing F95Checker's own client uses: at most ten threads
@@ -514,8 +570,27 @@ class F95Client {
   Future<Map<int, int>?> _fast(List<int> batch) async {
     await _spaced();
     final answer = await services.http('$index/fast?ids=${batch.join(',')}');
-    if (answer.status >= 500 || indexDown(answer.body)) throw HostError('FAILED', "F95Checker's index is down. Try again later.");
+    if (answer.status >= 500 || indexDown(answer.body)) throw HostError('FAILED', "F95Checker's index is down.");
     return parseFastCheck(answer.body, batch);
+  }
+
+  /// The thread read from F95zone itself, with the person's session, for when F95Checker's index cannot answer
+  /// (Droidtop/tracker#837): its name and version from the page's title. Null when F95zone says the thread is gone.
+  /// A browser check or a page with no thread title says so, plainly.
+  Future<({String name, String? version})?> fromPage(int id) async {
+    await _spaced();
+    final answer = await services.http(threadUrl(id), session: true);
+    if (answer.status == 404) return null;
+    if (checkPage(answer.body)) throw HostError('BROWSER_CHECK_REQUIRED', 'F95zone showed a browser check.');
+    if (answer.status == 429) throw HostError('RATE_LIMITED', 'F95zone asked to slow down.');
+    if (answer.status >= 400) throw HostError('FAILED', httpError('F95zone', answer.status));
+    final read = parseThreadTitle(answer.body);
+    if (read == null) {
+      throw HostError('FAILED', guestPage(answer.body)
+          ? 'F95zone showed this thread only to members.'
+          : "F95zone's thread page has no title this plugin can read; its layout may have changed.");
+    }
+    return read;
   }
 
   /// The thread's details, or null when the index says it is gone (400, 403, 404).
@@ -529,9 +604,10 @@ class F95Client {
     await _spaced();
     final answer = await services.http('$index/full/$id?ts=$stamp');
     if (answer.status == 400 || answer.status == 403 || answer.status == 404) return null;
-    if (answer.status >= 500 || indexDown(answer.body)) throw HostError('FAILED', "F95Checker's index is down. Try again later.");
-    final root = jsonDecode(answer.body);
-    if (root is! Map) throw HostError('FAILED', "F95Checker's index sent something this plugin could not read. Try again later.");
+    if (answer.status >= 500 || indexDown(answer.body)) throw HostError('FAILED', "F95Checker's index is down.");
+    // What came back is said plainly when it is not data (Droidtop/tracker#837), never "F95zone sent a page".
+    final root = _indexJson(answer.body);
+    if (root is! Map) throw HostError('FAILED', indexNotData(answer.body));
     final error = root['INDEX_ERROR']?.toString() ?? '';
     if (error.isNotEmpty) throw HostError('FAILED', "F95Checker's index could not answer. Try again later.");
     return root.cast<String, dynamic>();

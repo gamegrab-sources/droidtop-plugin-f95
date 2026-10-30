@@ -3,6 +3,17 @@
 Every working build of `main` is a release (`v<version>-<CI run>`); the
 declared version moves with every change to the plugin's sources.
 
+## 0.7.2
+
+- The update check reads F95zone itself when F95Checker's index cannot answer (Droidtop/tracker#837): an index that
+  answers with a browser check or a web page instead of data no longer stops the check as "F95zone sent a page this
+  plugin could not read". Each linked thread's name and version are read from its page's title, with the person's
+  session. When that fails too, the reason is said plainly: F95zone showed a browser check (`BROWSER_CHECK_REQUIRED`,
+  so droidtop offers Open the site), the thread is for members only, or the page has no title this plugin can read
+  (its layout changed).
+- The shared error codes pass through as themselves (docs/plugin-api.md 1.11, point 4) instead of all becoming
+  `FAILED`; the index's messages no longer end in "Try again later".
+
 ## 0.7.1
 
 - The `web.session` entry declares `expiredText` (droidtop docs/plugin-api.md G3, Droidtop/tracker#783): droidtop opens a

@@ -197,6 +197,40 @@ void main() {
     expect(host.notified.length, 1);
   });
 
+  test("when F95Checker's index answers with a page, the threads are read from F95zone (tracker 837)", () async {
+    final host = FakeHost();
+    host.web['https://api.f95checker.dev/fast?ids=93340'] = [200, '<html><title>Just a moment...</title></html>'];
+    host.web['https://f95zone.to/threads/93340/'] = [200, '<html data-logged-in="true"><title>VN - Ren&#039;Py - Eternum [v0.9.6 Public] [Caribdis] | F95zone</title></html>'];
+    final reply = data(await pluginOn(host).handle({'point': 'library.updates', 'op': 'check', 'args': {'ids': ['93340']}}));
+    expect(reply['answers'], [
+      {'id': '93340', 'version': 'v0.9.6 Public', 'url': 'https://f95zone.to/threads/93340/'},
+    ]);
+  });
+
+  test('a thread page that cannot be read says why, plainly (tracker 837)', () async {
+    final host = FakeHost();
+    host.web['https://api.f95checker.dev/fast?ids=5'] = [200, 'not json'];
+    host.web['https://f95zone.to/threads/5/'] = [200, '<html><title>Just a moment...</title></html>'];
+    final check = await pluginOn(host).handle({'point': 'library.updates', 'op': 'check', 'args': {'ids': ['5']}});
+    expect((check['error'] as Map)['code'], 'BROWSER_CHECK_REQUIRED');
+
+    host.web['https://f95zone.to/threads/5/'] = [200, '<html data-logged-in="true"><body>new layout</body></html>'];
+    final layout = await pluginOn(host).handle({'point': 'library.updates', 'op': 'check', 'args': {'ids': ['5']}});
+    expect((layout['error'] as Map)['message'], contains('layout may have changed'));
+  });
+
+  test("a thread page's title gives its name and version", () {
+    expect(parseThreadTitle('<title>Eternum [v0.9.6 Public] [Caribdis] | F95zone</title>'), (name: 'Eternum', version: 'v0.9.6 Public'));
+    expect(parseThreadTitle('<title>Thief of Hearts [Ep. 3] [Dev] | F95zone</title>')?.name, 'Thief of Hearts');
+    expect(parseThreadTitle('<title>Game [Final] [Dev] | F95zone</title>')?.version, 'Final');
+    expect(parseThreadTitle('<title>VN - Ren&#039;Py - Completed - Being a DIK - Season 2 [v0.8] [DrPinkCake] | F95zone</title>')?.name, 'Being a DIK - Season 2');
+    expect(parseThreadTitle('<title>Thief of Hearts [Ep. 3] [Dev] | F95zone</title>')?.version, 'Ep. 3');
+    expect(parseThreadTitle('<title>F95zone</title>'), isNull);
+    expect(parseThreadTitle('<html></html>'), isNull);
+    expect(indexNotData('<html><title>Just a moment...</title></html>'), contains('browser check'));
+    expect(indexNotData('<html>error</html>'), contains('web page instead of data'));
+  });
+
   test('a thread the index does not know is gone', () async {
     final host = FakeHost();
     host.web['https://api.f95checker.dev/fast?ids=7'] = [200, '{}'];
