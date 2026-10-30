@@ -3,7 +3,7 @@
   "origin": "gamegrab",
   "label": "F95zone",
   "description": "Finds F95zone games, checks your linked games for new versions, and downloads them with your F95zone account.",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "kind": "flutter_embed",
   "contractVersion": 3,
   "subscribedEvents": [
@@ -76,6 +76,9 @@
       ],
       "signIn": "https://f95zone.to/login/",
       "doneCookie": "xf_user",
+      "expiredText": [
+        "link has expired"
+      ],
       "reason": "Lets you sign in to F95zone in droidtop's browser view, to see download links and sync your watch list"
     },
     {

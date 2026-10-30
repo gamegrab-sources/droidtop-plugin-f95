@@ -3,6 +3,12 @@
 Every working build of `main` is a release (`v<version>-<CI run>`); the
 declared version moves with every change to the plugin's sources.
 
+## 0.7.1
+
+- The `web.session` entry declares `expiredText` (droidtop docs/plugin-api.md G3, Droidtop/tracker#783): droidtop opens a
+  mirror's masked link out of sight first, and a page saying the link has expired makes droidtop ask the record again
+  for the mirror's current link, with no F95 page shown.
+
 ## 0.7.0
 
 - A switch on the record page, "On my watch list" (droidtop docs/plugin-api.md 1.10, an `item.page` `toggle`,
