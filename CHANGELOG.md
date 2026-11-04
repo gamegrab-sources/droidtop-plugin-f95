@@ -3,6 +3,13 @@
 Every working build of `main` is a release (`v<version>-<CI run>`); the
 declared version moves with every change to the plugin's sources.
 
+## 0.7.3
+
+- A mirror's link is found on the thread page again when the thread has changed since F95Checker's index read it
+  (Droidtop/tracker#862): the link is looked for in the thread's first post only, as F95Checker does, and when the
+  index's place for it no longer fits, the link with the mirror's own name (under its heading first) is taken. A thread
+  that shows a PIXELDRAIN link no longer fails as "The thread page has no PIXELDRAIN link now".
+
 ## 0.7.2
 
 - The update check reads F95zone itself when F95Checker's index cannot answer (Droidtop/tracker#837): an index that

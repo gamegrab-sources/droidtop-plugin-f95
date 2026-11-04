@@ -342,7 +342,7 @@ class F95Plugin {
       await _endSession();
       return {'ok': false, 'error': signInForLinks};
     }
-    final link = resolveMirror(page.body, mirror.selector);
+    final link = resolveMirror(page.body, mirror.selector, label: mirror.label, section: mirror.section);
     if (link == null) {
       return {'ok': false, 'error': 'The thread page has no ${mirror.label} link now; try another mirror'};
     }
@@ -594,7 +594,7 @@ int? mirrorFor(ThreadDetail detail, String link) {
 /// left out.
 Map<int, String> mirrorAddresses(ThreadDetail d, String html) => {
       for (var i = 0; i < d.mirrors.length; i++)
-        if (resolveMirror(html, d.mirrors[i].selector) case final String url when url.startsWith('https://') && url.length <= 2048) i: url,
+        if (resolveMirror(html, d.mirrors[i].selector, label: d.mirrors[i].label, section: d.mirrors[i].section) case final String url when url.startsWith('https://') && url.length <= 2048) i: url,
     };
 
 /// The systems a thread's download heading names ("Win/Linux" is Windows and Linux), in droidtop's words and order

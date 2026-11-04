@@ -168,6 +168,36 @@ void main() {
     expect(resolveMirror(html, 'https://f95zone.to/masked/abc/1/2'), 'https://f95zone.to/masked/abc/1/2');
   });
 
+  test("a mirror is found in the first post, by its label when the index's count is stale (Droidtop/tracker#862)", () {
+    // The thread changed since the index read it: the index's second PIXELDRAIN link is now the only one, and a
+    // reply below quotes another PIXELDRAIN link that is no mirror of this thread.
+    const page = '<html data-logged-in="true"><body>'
+        '<a href="https://pixeldrain.com/u/sig">sig</a>'
+        '<article class="message message--post message-threadStarterPost"><article class="message-body">'
+        '<b>vSteam Build</b>: <a class="link link--external" href="https://mega.nz/file/m">MEGA</a> - '
+        '<a class="link link--external" href="https://pixeldrain.com/u/steam"><span>PIXELDRAIN</span></a>'
+        '</article></article>'
+        '<article class="message message--post"><a href="https://pixeldrain.com/u/reply">PIXELDRAIN</a></article>'
+        '</body></html>';
+    const sel = "//a[starts-with(@href,'https://pixeldrain.com/')][2]";
+    expect(resolveMirror(page, sel, label: 'PIXELDRAIN', section: 'vSteam Build'), 'https://pixeldrain.com/u/steam');
+    // Without a label, the only link with the prefix in the first post.
+    expect(resolveMirror(page, sel), 'https://pixeldrain.com/u/steam');
+    expect(resolveMirror(page, "//a[starts-with(@href,'https://mega.nz/')][1]", label: 'MEGA'), 'https://mega.nz/file/m');
+    expect(resolveMirror(page, "//a[starts-with(@href,'https://gofile.io/')][1]", label: 'GOFILE'), isNull);
+    expect(starterPost(page), isNot(contains('u/reply')));
+    expect(starterPost(page), isNot(contains('u/sig')));
+  });
+
+  test("of two links with the label, the one under the mirror's heading is taken", () {
+    const page = '<article class="message message-threadStarterPost">'
+        'Win: <a href="https://pixeldrain.com/u/w">PIXELDRAIN</a> '
+        'Linux: <a href="https://pixeldrain.com/u/l">PIXELDRAIN</a></article>';
+    const sel = "//a[starts-with(@href,'https://pixeldrain.com/')][5]";
+    expect(resolveMirror(page, sel, label: 'PIXELDRAIN', section: 'Linux'), 'https://pixeldrain.com/u/l');
+    expect(resolveMirror(page, sel, label: 'PIXELDRAIN', section: 'Win'), 'https://pixeldrain.com/u/w');
+  });
+
   test('a fast check reads stamps, and a refused batch is null', () {
     expect(parseFastCheck('{"93340":1791409117}', [93340, 1]), {93340: 1791409117});
     expect(parseFastCheck('"Invalid thread IDs"', [1]), isNull);

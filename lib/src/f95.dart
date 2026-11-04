@@ -399,23 +399,57 @@ String folderTitle(String folder) {
 /// nothing to look up on the page: droidtop opens it in its view, where the
 /// person solves the CAPTCHA and taps the host link (Droidtop/tracker#650).
 /// Null when the page has no such link or the selector is another form.
-String? resolveMirror(String html, String selector) {
+///
+/// F95Checker counts N inside the thread's first post, as its index read it (common/parser.py, the post's own tree;
+/// modules/webview.py evaluates it under `message-threadStarterPost`). The live page can differ from that read: a
+/// thread that changed since (a new build, a mirror dropped) moves or loses the Nth link, which is how a thread that
+/// shows a PIXELDRAIN link was reported as having none (Droidtop/tracker#862). So the link is looked for in the first
+/// post only, and the mirror's own [label] (the link's text) and [section] (its heading) settle it when N does not:
+/// the Nth link is taken when its text is the label, otherwise a link with the prefix and the label's text (under the
+/// section's heading first), otherwise the Nth link as before, otherwise the only link with the prefix.
+String? resolveMirror(String html, String selector, {String label = '', String section = ''}) {
   final given = selector.trim();
   if (given.startsWith('https://f95zone.to/')) return given;
-  final match = RegExp(r"""^//a\[starts-with\(@href,\s*['"]([^'"]+)['"]\)\](?:\[(\d+)\])?$""").firstMatch(selector.trim());
+  final match = RegExp(r"""^//a\[starts-with\(@href,\s*['"]([^'"]+)['"]\)\](?:\[(\d+)\])?$""").firstMatch(given);
   if (match == null) return null;
   final prefix = match.group(1)!;
   final index = int.tryParse(match.group(2) ?? '1') ?? 1;
-  var seen = 0;
-  for (final href in RegExp(r'''<a\s[^>]*href\s*=\s*["']([^"']+)["']''', caseSensitive: false).allMatches(html)) {
-    final url = _unescape(href.group(1)!);
-    if (url.startsWith(prefix)) {
-      seen++;
-      if (seen == index) return url;
-    }
+  final post = starterPost(html);
+  final links = [
+    for (final a in _anchors.allMatches(post))
+      if (_unescape(a.group(1)!) case final url when url.startsWith(prefix)) (url: url, text: _text(a.group(2)!), at: a.start),
+  ];
+  if (links.isEmpty) return null;
+  final nth = index >= 1 && index <= links.length ? links[index - 1] : null;
+  final wanted = _key(label);
+  if (wanted.isEmpty) return (nth ?? (links.length == 1 ? links.single : null))?.url;
+  if (nth != null && _key(nth.text) == wanted) return nth.url;
+  final named = links.where((l) => _key(l.text) == wanted).toList();
+  if (named.isNotEmpty) {
+    final heading = section.trim().isEmpty ? -1 : post.toLowerCase().indexOf(section.trim().toLowerCase());
+    return (heading < 0 ? named.first : named.firstWhere((l) => l.at > heading, orElse: () => named.first)).url;
   }
-  return null;
+  return (nth ?? (links.length == 1 ? links.single : null))?.url;
 }
+
+/// The thread's first post in [html] (XenForo marks it `message-threadStarterPost`), up to the next post; the whole
+/// page when it has no such mark.
+String starterPost(String html) {
+  final mark = RegExp(r'''<[a-z]+\b[^>]*\bclass\s*=\s*["'][^"']*\bmessage-threadStarterPost\b''', caseSensitive: false).firstMatch(html);
+  if (mark == null) return html;
+  // The next post is the next element whose classes include `message` itself (not `message-body`, which posts hold).
+  final next = RegExp(r'''<article\b[^>]*\bclass\s*=\s*["'](?:[^"']*\s)?message["'\s]''', caseSensitive: false)
+      .allMatches(html, mark.end)
+      .firstOrNull;
+  return html.substring(mark.start, next?.start ?? html.length);
+}
+
+final RegExp _anchors = RegExp(r'''<a\s[^>]*href\s*=\s*["']([^"']+)["'][^>]*>(.*?)</a>''', caseSensitive: false, dotAll: true);
+
+String _text(String inner) => _unescape(inner.replaceAll(RegExp(r'<[^>]*>'), ' ')).replaceAll(RegExp(r'\s+'), ' ').trim();
+
+/// A label as a key: letters and digits only, lower case ("PixelDrain" and "PIXELDRAIN" are one).
+String _key(String s) => s.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
 
 /// Whether [html] is a thread page F95zone served to a guest (XenForo marks its `<html>` `data-logged-in="false"`):
 /// download links are for members, so a guest page has none. A page that is not XenForo's (a browser check) is not one.
