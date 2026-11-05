@@ -16,6 +16,11 @@ class FakeHost implements Host {
   bool signedIn = false;
   String? account;
   Map<String, dynamic>? captured;
+  // Context sync (docs/plugin-api.md 3 F8): off for a droidtop without it.
+  bool contexts = true;
+  Map<String, dynamic>? opened;
+  Map<String, dynamic>? published;
+  Map<String, dynamic> copy = {};
 
   @override
   Future<Map<String, dynamic>> call(String api, int version, String op, Map<String, dynamic> args) async {
@@ -50,6 +55,17 @@ class FakeHost implements Host {
         return Reply.ok({'cleared': true});
       case 'web.session open_in_session':
         return Reply.ok({'captured': captured != null, if (captured != null) 'download': captured});
+      case 'context open':
+        if (!contexts) break;
+        opened = args;
+        return Reply.ok({'records': 0, 'conflicts': []});
+      case 'context publish':
+        if (!contexts) break;
+        published = (args['records'] as Map).cast<String, dynamic>();
+        return Reply.ok({'published': 1, 'generation': 1, 'lines': [], 'conflicts': []});
+      case 'context copy':
+        if (!contexts) break;
+        return Reply.ok({'generation': 2, 'records': copy});
     }
     return Reply.error('UNSUPPORTED', '$api $op');
   }
@@ -438,44 +454,50 @@ void main() {
     expect(host.requested, isEmpty);
   });
 
-  group('context sync merges three ways, field by field (docs/CONTEXT.md)', () {
-    WatchedThread t({String name = 'Eternum', String? version, String? installed, String notes = '', bool watched = true, Map<String, int>? at}) =>
-        WatchedThread(id: 1, name: name, version: version, installed: installed, notes: notes, watched: watched, changedAt: 0, fieldAt: at);
+  test('a change to the watch list publishes it as the context copy (docs/CONTEXT.md)', () async {
+    final host = FakeHost();
+    final plugin = pluginOn(host);
+    await plugin.job('ui.facets', 'setWatched', {'id': '93340', 'name': 'Eternum', 'value': true});
+    expect(host.opened, isNotNull, reason: 'the context is declared before it is published');
+    expect((host.opened!['fields'] as List).map((f) => (f as Map)['name']), containsAll(['installed', 'notes']));
+    expect(host.published!['93340'], containsPair('name', 'Eternum'));
+    expect(host.published!['93340'], containsPair('installed', ''));
+    final context = Context.fromJson(jsonDecode(utf8.decode(host.files['context.json']!)) as Map<String, dynamic>);
+    expect(context.copyKeys, {93340});
+  });
 
-    test('one side changed: that side wins; nobody changed: the base stays', () {
-      final m = mergeContext({1: t(installed: 'v1')}, {1: t(installed: 'v2')}, {1: t(installed: 'v1', notes: 'pc note')})[1]!;
-      expect(m.installed, 'v2');
-      expect(m.notes, 'pc note');
-      expect(m.name, 'Eternum');
-    });
+  test('a received copy is brought in, and unwatches only what the last shared copy had', () async {
+    final host = FakeHost();
+    final plugin = pluginOn(host);
+    await plugin.job('ui.facets', 'setWatched', {'id': '1', 'name': 'One', 'value': true});
+    await plugin.job('ui.facets', 'setWatched', {'id': '2', 'name': 'Two', 'value': true});
+    // Watched here after that copy was shared, and not yet in any copy.
+    final before = Context.fromJson(jsonDecode(utf8.decode(host.files['context.json']!)) as Map<String, dynamic>);
+    before.watched[3] = WatchedThread(id: 3, name: 'Three', changedAt: 1);
+    host.files['context.json'] = utf8.encode(jsonEncode(before.toJson()));
+    // The computer installed 0.2 of thread 1, unwatched thread 2 and watched thread 4.
+    host.copy = {
+      '1': {'name': 'One', 'version': '0.3', 'installed': '0.2', 'finished': '', 'notes': ''},
+      '4': {'name': 'Four', 'version': '1.0', 'installed': '', 'finished': '', 'notes': 'from the PC'},
+    };
+    expect(await plugin.onEvent('context.received'), {'ok': true});
+    final after = Context.fromJson(jsonDecode(utf8.decode(host.files['context.json']!)) as Map<String, dynamic>);
+    expect(after.watched[1]!.installed, '0.2');
+    expect(after.watched[1]!.version, '0.3');
+    expect(after.watched[1]!.finished, isNull, reason: 'empty text is not set');
+    expect(after.watched[2]!.watched, isFalse);
+    expect(after.watched[3]!.watched, isTrue, reason: 'not in the last shared copy, so not unwatched by this one');
+    expect(after.watched[4]!.notes, 'from the PC');
+    expect(after.copyKeys, {1, 4});
+  });
 
-    test('conflicts: installed by the later change, latest by the later check, name by the computer', () {
-      final m = mergeContext(
-        {1: t(installed: 'v1', version: 'v3')},
-        {1: t(name: 'Eternum (device)', installed: 'v2', version: 'v4', at: {'installed': 20, 'version': 5})},
-        {1: t(name: 'Eternum renamed', installed: 'v3', version: 'v5', at: {'installed': 10, 'version': 9})},
-      )[1]!;
-      expect(m.installed, 'v2');
-      expect(m.version, 'v5');
-      expect(m.name, 'Eternum renamed');
-    });
-
-    test('notes in conflict are both kept', () {
-      final m = mergeContext({1: t(notes: 'a')}, {1: t(notes: 'from device')}, {1: t(notes: 'from pc')})[1]!;
-      expect(m.notes, ['from pc', notesSeparator, 'from device'].join('\n'));
-    });
-
-    test('a watch wins over an unwatch, a one-sided unwatch stands, and a new thread on one side arrives', () {
-      expect(mergeContext({1: t()}, {1: t(watched: false)}, {1: t(installed: 'v2')})[1]!.watched, isTrue);
-      expect(mergeContext({1: t()}, {1: t(watched: false)}, {1: t(version: 'v9')})[1]!.watched, isFalse,
-          reason: "the index's new version is not the person's edit");
-      final gone = mergeContext({1: t(installed: 'v1')}, {}, {1: t(installed: 'v1')})[1]!;
-      expect(gone.watched, isFalse);
-      expect(gone.installed, 'v1');
-      final added = mergeContext({}, {}, {1: t(installed: 'v9')})[1]!;
-      expect(added.watched, isTrue);
-      expect(added.installed, 'v9');
-    });
+  test('without context sync in droidtop, the watch list still changes', () async {
+    final host = FakeHost()..contexts = false;
+    final kept = await pluginOn(host).job('ui.facets', 'setWatched', {'id': '7', 'name': 'Seven', 'value': true});
+    expect(kept['ok'], isTrue);
+    final context = Context.fromJson(jsonDecode(utf8.decode(host.files['context.json']!)) as Map<String, dynamic>);
+    expect(context.watched[7]!.watched, isTrue);
+    expect(context.copyKeys, isEmpty);
   });
 
   test('featured lists the Latest Updates newest first, banner as box art, and nothing for a console (droidtop #612)', () async {

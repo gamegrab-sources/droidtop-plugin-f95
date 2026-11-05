@@ -1,14 +1,14 @@
 # The F95zone plugin's context, and how it syncs
 
-droidtop's plugin context sync (Droidtop/tracker#380, transport by the desktop
-agent, tracker#373) keeps a plugin's own supporting state the same on the
+droidtop's plugin context sync (Droidtop/tracker#380 and #794, transport by
+the desktop agent, tracker#373) keeps a plugin's own supporting state the same on the
 handheld and on the person's computer, both ways: watch a thread or mark a
 version installed in F95Checker on the PC and the plugin shows it; do it in
 droidtop and F95Checker's database shows it. This file says what this
-plugin's context is and how two changed copies merge. The PC side
+plugin's context is and how it syncs. The PC side
 (gamegrab-sources/droidtop-agent-f95-adapter) reads and writes F95Checker's
 `db.sqlite3`; this plugin reads and writes `context.json` in its own data
-folder (droidtop's data API). Both apply the rules below.
+folder (droidtop's data API); droidtop merges the copies between them.
 
 Library facts are not context. Which droidtop game is linked to which thread
 is droidtop's (its source links, SPEC 7g), and so is whether a newer version
@@ -32,48 +32,51 @@ not threads, and are never part of the context.
 | finished | `finished` | `finished` | the person | the version they finished |
 | notes | `notes` | `notes` | the person | free text |
 
-Every record also carries, per field, the time the field last changed on the
-side that holds the record (`changedAt` for the record, and `fieldAt` with one
-time per field once both sides keep them; milliseconds since 1970). F95Checker
-keeps no per-field times, so the adapter keeps them itself next to the
-database, stamping a field the moment it sees it differ from its last
-snapshot.
+Every record also carries, here only, the time each field last changed
+(`changedAt`, `fieldAt`, milliseconds since 1970), for the watch list's own
+sync with F95zone below.
 
 Not context, deliberately: F95Checker's launch settings (`executables`,
 `launch_wrapper`) and play time are about the PC's own copies of games;
 labels, tabs and ratings are F95Checker's UI. They stay on the PC.
 
-## How two copies merge: three-way, per field
+## How it syncs: a copy, merged by droidtop
 
-Each side keeps the **base**: the record as it was at the last successful sync
-(the same snapshot on both sides after a sync). A sync compares, field by
-field, the base with the handheld's copy (**device**) and the PC's copy
-(**pc**):
+The context syncs by copies (droidtop docs/plugin-api.md 3 F8, protocol 2;
+droidtop-agent docs/DESIGN.md section 8; Droidtop/tracker#794). The plugin's
+live `context.json` never travels.
 
-1. Neither changed it since the base: keep it.
-2. One side changed it: take that side's value.
-3. Both changed it to the same value: take it.
-4. Both changed it to different values (a conflict): the field's own rule.
+- **Publishing.** After every change to the watch list (the record page's
+  switch, a watch-list sync with F95zone), the plugin declares the context
+  (`context.open`) and publishes the watched threads as its copy
+  (`context.publish`). droidtop makes the copy current in one step and syncs
+  it with each paired computer.
+- **The merge is droidtop's** (the agent core's three-way merge per field,
+  against the baseline droidtop keeps per computer). The plugin declares, per
+  field, which way it travels and who wins when both sides changed it:
 
-| Field | Conflict rule | Why |
-| --- | --- | --- |
-| watched | **watched wins** (add wins over remove) | losing a watch silently is worse than one extra thread on the list; unwatching again is one press |
-| name | **pc wins** | F95Checker's rename is the person's deliberate act; the device only ever takes the index's title |
-| latest | **the newer check wins** (the later `fieldAt`); equal times: pc | both sides ask the same index; the later answer is the truer one |
-| installed | **the later change wins** (`fieldAt`); equal times: device | the person's own statement; the most recent one is what they mean now |
-| finished | same as installed | same reason |
-| notes | **both kept**: the pc text, a line `-- from the handheld --`, then the device text | text is never thrown away; the person tidies it once |
+  | Field | Direction | Both changed it |
+  | --- | --- | --- |
+  | `name` | computer to handheld | the computer (F95Checker's rename is the person's) |
+  | `url` | computer to handheld | the computer |
+  | `version` | computer to handheld | the computer |
+  | `installed` | both | the handheld (the person's own mark here) |
+  | `finished` | both | the handheld |
+  | `notes` | both | the person is asked |
 
-A record only one side has:
-- created since the base on that side: added to the other side;
-- deleted since the base on that side (an unwatch): it stays as a tombstone
-  (`watched: false`) until the other side has applied it, then both drop it;
-- deleted on one side and changed by the person on the other since the base
-  (name, installed, finished or notes; a new version from the index does not
-  count): "watched wins" above applies, so it comes back, with the other
-  side's changes.
-
-After a merge both sides hold the merged record and it becomes the new base.
+  Whole threads (watching and unwatching) travel both ways. A version not
+  set is the empty text, as F95Checker keeps it.
+- **On the computer**, the adapter (gamegrab-sources/droidtop-agent-f95-adapter,
+  adapter protocol 2) gives the agent a snapshot of F95Checker's threads before
+  each sync, and takes the merged copy back into `db.sqlite3` while
+  F95Checker is closed, keeping a change made there since the snapshot.
+- **Receiving.** When a merged copy that differs from what the plugin last
+  published is made current here, droidtop sends `context.received`. The
+  plugin reads it (`context.copy`) and brings it into `context.json`
+  (`Context.takeCopy`): every thread in it is watched with its fields. A
+  thread is unwatched only when it was in the last copy both sides had
+  (`copyKeys`) and this one no longer has it, so a thread watched here since
+  is never lost. What changed reaches F95zone at the next watch-list sync.
 
 ## F95zone itself
 
@@ -87,7 +90,9 @@ else follows the site.
 ## Files
 
 - `context.json` in the plugin's data folder: `{"format": 1, "siteSyncedAt":
-  ms, "watched": [records]}`, records as in the table above. The base for
-  context sync is kept beside it as `context-base.json` in the same shape.
-- The merge is `mergeContext` in lib/src/state.dart, with its tests in
-  test/plugin_test.dart; the adapter implements the same table.
+  ms, "copyKeys": [thread ids], "watched": [records]}`, records as in the
+  table above. The copy itself and its baselines are droidtop's, in its own
+  folders, never the plugin's.
+- `toCopy` and `takeCopy` in lib/src/state.dart, `publishContext` and
+  `takeReceived` in lib/src/plugin.dart, with their tests in
+  test/plugin_test.dart.

@@ -87,6 +87,20 @@ class Services {
     return HttpAnswer((data['status'] as num?)?.toInt() ?? 0, data['url']?.toString() ?? url, data['body']?.toString() ?? '');
   }
 
+  /// Declares the plugin's context to droidtop (droidtop docs/plugin-api.md 3 F8, `context.open`): its fields, each
+  /// with a direction and a rule for a conflict, and which way whole records travel.
+  Future<void> contextOpen(String context, List<Map<String, String>> fields, {String presence = 'both'}) async {
+    await _data('context', 'open', {'context': context, 'fields': fields, 'presence': presence});
+  }
+
+  /// Publishes the context's whole copy (`context.publish`, protocol 2): droidtop makes it current in one step and
+  /// syncs it with the paired computers.
+  Future<Map<String, dynamic>> contextPublish(String context, Map<String, dynamic> records) =>
+      _data('context', 'publish', {'context': context, 'records': records});
+
+  /// The context's current copy (`context.copy`): `{generation, records}`.
+  Future<Map<String, dynamic>> contextCopy(String context) => _data('context', 'copy', {'context': context});
+
   /// The plugin's own file [name] as JSON, or null when there is none.
   Future<Object?> readJson(String name) async {
     try {

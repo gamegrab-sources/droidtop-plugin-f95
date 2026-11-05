@@ -17,6 +17,22 @@ const String signedInCookie = 'xf_user';
 const String _stateFile = 'state.json';
 const String _contextFile = 'context.json';
 
+/// The context F95Checker's adapter serves on the person's computers (docs/CONTEXT.md; droidtop docs/plugin-api.md 3
+/// F8): the plugin's manifest declares its adapter under `computers.context_adapter`.
+const String contextId = 'f95checker';
+
+/// The context's fields as droidtop merges them: what F95Checker's index and the person's renames say comes from
+/// the computer; what the person marks travels both ways, the handheld's mark winning a clash, and two different
+/// notes are the person's to choose.
+const List<Map<String, String>> contextFields = [
+  {'name': 'name', 'direction': 'to_device', 'rule': 'computer'},
+  {'name': 'url', 'direction': 'to_device', 'rule': 'computer'},
+  {'name': 'version', 'direction': 'to_device', 'rule': 'computer'},
+  {'name': 'installed', 'direction': 'both', 'rule': 'device'},
+  {'name': 'finished', 'direction': 'both', 'rule': 'device'},
+  {'name': 'notes', 'direction': 'both', 'rule': 'ask'},
+];
+
 /// The plugin's answers to droidtop's calls, by extension point and op
 /// (droidtop docs/plugin-api.md 3: A2 sources, A3 metadata, A6 updates, C
 /// settings), and the jobs droidtop starts on it. Everything it shows is a
@@ -101,6 +117,14 @@ class F95Plugin {
   /// An event droidtop sent: after the person signed in to F95zone through droidtop, the account's name for its
   /// account row, and the watch list. The answer starts no job.
   Future<Map<String, dynamic>> onEvent(String event) async {
+    if (event == 'context.received') {
+      try {
+        await takeReceived();
+      } on HostError {
+        // The copy stays droidtop's current one; it is read again at the next event.
+      }
+      return {'ok': true};
+    }
     if (event == 'web.session.signed_in') {
       try {
         await syncWatched();
@@ -481,6 +505,7 @@ class F95Plugin {
         ..changedAt = now
         ..fieldAt['watched'] = now;
     }
+    await publishContext(context);
     await services.writeJson(_contextFile, context.toJson());
     if (!await services.signedIn()) {
       return on
@@ -488,6 +513,30 @@ class F95Plugin {
           : 'Off your watch list here. Sign in to F95zone to send it there';
     }
     return await syncWatched();
+  }
+
+  /// Publishes the watched threads as the context's copy (`context.publish`), which droidtop syncs with the paired
+  /// computers; the caller writes [context] after. A droidtop without context sync, or one the person has not let
+  /// sync this plugin's data, changes nothing here.
+  Future<void> publishContext(Context context) async {
+    try {
+      await services.contextOpen(contextId, contextFields);
+      await services.contextPublish(contextId, context.toCopy());
+      context.copyKeys = context.active.map((w) => w.id).toSet();
+    } on HostError {
+      // Published again with the next change; the watch list itself is kept either way.
+    }
+  }
+
+  /// The `context.received` event: droidtop made a merged copy current; it is brought into the watch list here. A
+  /// thread watched or unwatched by it is sent to F95zone at the next watch-list sync.
+  Future<bool> takeReceived() async {
+    final copy = await services.contextCopy(contextId);
+    final records = ((copy['records'] as Map?) ?? const {}).cast<String, dynamic>();
+    final context = Context.fromJson(await services.readJson(_contextFile));
+    final changed = context.takeCopy(records, _now());
+    if (changed) await services.writeJson(_contextFile, context.toJson());
+    return changed;
   }
 
   /// Reads the watch list from F95zone, sends it what was changed here, and
@@ -530,6 +579,7 @@ class F95Plugin {
       }
     }
     context.mergeSite(site, _now());
+    await publishContext(context);
     await services.writeJson(_contextFile, context.toJson());
     return 'Watch list: ${context.active.length} threads${sent > 0 ? ', $sent changes sent to F95zone' : ''}';
   }

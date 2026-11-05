@@ -15,9 +15,8 @@ no screens of its own.
 0.2.0: update checks with notifications, linking a game to its thread
 (watch list first, then search), search, thread details, downloads through
 droidtop's web view, details for droidtop's scraper, F95zone sign-in and
-watch-list sync. Context sync with F95Checker on your computer waits for
-droidtop's sync transport; its definition is in docs/CONTEXT.md. See
-CHANGELOG.md.
+watch-list sync. 0.8.0: context sync with F95Checker on your paired
+computers, by copies droidtop merges (docs/CONTEXT.md). See CHANGELOG.md.
 
 ## How it fits droidtop
 

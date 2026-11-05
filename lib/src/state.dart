@@ -94,18 +94,25 @@ class WatchedThread {
 }
 
 class Context {
-  Context({Map<int, WatchedThread>? watched, this.siteSyncedAt = 0}) : watched = watched ?? {};
+  Context({Map<int, WatchedThread>? watched, this.siteSyncedAt = 0, Set<int>? copyKeys})
+      : watched = watched ?? {},
+        copyKeys = copyKeys ?? {};
 
   final Map<int, WatchedThread> watched;
 
   /// When the watch list was last read from F95zone (ms), 0 for never.
   int siteSyncedAt;
 
+  /// The threads of the last copy both sides had: the one published here or the merged one received. Only a thread
+  /// in it can be unwatched by a copy that no longer has it; one watched here since is not lost.
+  Set<int> copyKeys;
+
   Iterable<WatchedThread> get active => watched.values.where((w) => w.watched);
 
   Map<String, dynamic> toJson() => {
         'format': 1,
         'siteSyncedAt': siteSyncedAt,
+        'copyKeys': copyKeys.toList()..sort(),
         'watched': watched.values.map((w) => w.toJson()).toList(),
       };
 
@@ -117,7 +124,67 @@ class Context {
         for (final item in list.whereType<Map>()) (item['id'] as num).toInt(): WatchedThread.fromJson(item.cast<String, dynamic>()),
       },
       siteSyncedAt: (raw['siteSyncedAt'] as num?)?.toInt() ?? 0,
+      copyKeys: {for (final k in (raw['copyKeys'] as List?) ?? const []) if (k is num) k.toInt()},
     );
+  }
+
+  /// The watched threads as the context's copy for droidtop (docs/CONTEXT.md): one record per thread id, the fields
+  /// the context declares (`contextFields`, lib/src/plugin.dart). A version not set is the empty text, as F95Checker keeps it.
+  Map<String, dynamic> toCopy() => {
+        for (final w in active)
+          '${w.id}': {
+            'name': w.name,
+            'version': w.version ?? '',
+            'installed': w.installed ?? '',
+            'finished': w.finished ?? '',
+            'notes': w.notes,
+          },
+      };
+
+  /// Brings in a merged copy droidtop received ([records], `context.copy`), at [now]: every thread in it is watched
+  /// here with its fields; a thread of the last shared copy ([copyKeys]) that it no longer has was unwatched on a
+  /// computer and is unwatched here. A thread watched here since that copy stays. Returns whether anything changed.
+  bool takeCopy(Map<String, dynamic> records, int now) {
+    var changed = false;
+    String? text(Object? v) => v is String && v.isNotEmpty ? v : null;
+    final keys = <int>{};
+    for (final entry in records.entries) {
+      final id = int.tryParse(entry.key);
+      final r = entry.value;
+      if (id == null || id <= 0 || r is! Map) continue;
+      keys.add(id);
+      final w = watched.putIfAbsent(id, () {
+        changed = true;
+        return WatchedThread(id: id, name: '', changedAt: now);
+      });
+      void update(String field, bool differs, void Function() apply) {
+        if (!differs) return;
+        apply();
+        w.fieldAt[field] = now;
+        w.changedAt = now;
+        changed = true;
+      }
+
+      final name = text(r['name']);
+      if (name != null) update('name', name != w.name, () => w.name = name);
+      if (r.containsKey('version')) update('version', text(r['version']) != w.version, () => w.version = text(r['version']));
+      if (r.containsKey('installed')) update('installed', text(r['installed']) != w.installed, () => w.installed = text(r['installed']));
+      if (r.containsKey('finished')) update('finished', text(r['finished']) != w.finished, () => w.finished = text(r['finished']));
+      if (r.containsKey('notes')) update('notes', (r['notes'] as String? ?? '') != w.notes, () => w.notes = r['notes'] as String? ?? '');
+      update('watched', !w.watched, () => w.watched = true);
+    }
+    for (final id in copyKeys.difference(keys)) {
+      final w = watched[id];
+      if (w != null && w.watched) {
+        w
+          ..watched = false
+          ..changedAt = now
+          ..fieldAt['watched'] = now;
+        changed = true;
+      }
+    }
+    copyKeys = keys;
+    return changed;
   }
 
   /// The watch list as F95zone shows it now ([site]: thread id -> title), taken
@@ -168,79 +235,4 @@ class PluginState {
       for (final item in list.whereType<Map>()) (item['id'] as num).toInt(): ThreadCheck.fromJson(item.cast<String, dynamic>()),
     });
   }
-}
-
-/// The separator two conflicting notes are kept around (docs/CONTEXT.md).
-const String notesSeparator = '-- from the handheld --';
-
-/// Context sync's three-way merge (docs/CONTEXT.md): [base] as of the last
-/// sync, the handheld's copy [device] and the computer's copy [pc], merged
-/// field by field. A side without a record it had at the base has unwatched
-/// it, and only that; every other field of it is the base's.
-Map<int, WatchedThread> mergeContext(
-  Map<int, WatchedThread> base,
-  Map<int, WatchedThread> device,
-  Map<int, WatchedThread> pc,
-) {
-  final out = <int, WatchedThread>{};
-  for (final id in {...base.keys, ...device.keys, ...pc.keys}) {
-    final b = base[id];
-    WatchedThread? side(WatchedThread? r) => r ??
-        (b == null
-            ? null
-            : WatchedThread(
-                id: id,
-                name: b.name,
-                version: b.version,
-                installed: b.installed,
-                finished: b.finished,
-                notes: b.notes,
-                changedAt: b.changedAt,
-                watched: false,
-                fieldAt: Map.of(b.fieldAt),
-              ));
-    final d = side(device[id]);
-    final p = side(pc[id]);
-
-    T pick<T>(String field, T Function(WatchedThread?) get, T Function(T dv, T pv) conflict) {
-      final vb = get(b), vd = get(d), vp = get(p);
-      final changedD = d != null && vd != vb;
-      final changedP = p != null && vp != vb;
-      if (!changedD && !changedP) return vb;
-      if (changedD && !changedP) return vd;
-      if (!changedD && changedP) return vp;
-      if (vd == vp) return vd;
-      return conflict(vd, vp);
-    }
-
-    int at(WatchedThread? r, String field) => r?.fieldAt[field] ?? 0;
-    T later<T>(String field, T dv, T pv, {required bool tieToPc}) {
-      final dt = at(d, field), pt = at(p, field);
-      if (dt == pt) return tieToPc ? pv : dv;
-      return dt > pt ? dv : pv;
-    }
-
-    // An unwatch on one side meets the person's own edit of that thread on the other (not the index's new
-    // version): the thread comes back, the "watched wins" rule.
-    bool edited(WatchedThread? r) =>
-        r != null && r.watched && b != null && (r.name != b.name || r.installed != b.installed || r.finished != b.finished || r.notes != b.notes);
-    var watched = pick<bool>('watched', (r) => r?.watched ?? false, (dv, pv) => true);
-    if (!watched && b != null && ((d?.watched == false && edited(p)) || (p?.watched == false && edited(d)))) watched = true;
-    final merged = WatchedThread(
-      id: id,
-      name: pick<String>('name', (r) => r?.name ?? '', (dv, pv) => pv),
-      version: pick<String?>('version', (r) => r?.version, (dv, pv) => later('version', dv, pv, tieToPc: true)),
-      installed: pick<String?>('installed', (r) => r?.installed, (dv, pv) => later('installed', dv, pv, tieToPc: false)),
-      finished: pick<String?>('finished', (r) => r?.finished, (dv, pv) => later('finished', dv, pv, tieToPc: false)),
-      notes: pick<String>('notes', (r) => r?.notes ?? '', (dv, pv) => [pv, notesSeparator, dv].join('\n')),
-      changedAt: [b?.changedAt ?? 0, d?.changedAt ?? 0, p?.changedAt ?? 0].reduce((x, y) => x > y ? x : y),
-      watched: watched,
-      fieldAt: {
-        for (final f in const ['watched', 'name', 'version', 'installed', 'finished', 'notes'])
-          f: [at(b, f), at(d, f), at(p, f)].reduce((x, y) => x > y ? x : y),
-      },
-    );
-    out[id] = merged;
-  }
-  return out;
 }
