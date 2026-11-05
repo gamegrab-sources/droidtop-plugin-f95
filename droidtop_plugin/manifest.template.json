@@ -46,16 +46,16 @@
       "label": "F95Checker",
       "programs": {
         "windows-x86_64": {
-          "url": "https://github.com/gamegrab-sources/droidtop-agent-f95-adapter/releases/download/build-1/droidtop-agent-f95-adapter-windows-x86_64.exe",
-          "sha256": "ad82e59d9d2ed3c8ddae7c07c0023089cf39d23b983264f9b5f429e6d573c394"
+          "url": "https://github.com/gamegrab-sources/droidtop-agent-f95-adapter/releases/download/build-3/droidtop-agent-f95-adapter-windows-x86_64.exe",
+          "sha256": "000c32ddef6880c22ed98bef0b535767e54f025cfdf21b578eeca2d3795c4831"
         },
         "linux-x86_64": {
-          "url": "https://github.com/gamegrab-sources/droidtop-agent-f95-adapter/releases/download/build-1/droidtop-agent-f95-adapter-linux-x86_64",
-          "sha256": "e49a67a30188c12a44cccfb695b01e77dd9c9c30e43622eeb43f3fd9ce4eb01a"
+          "url": "https://github.com/gamegrab-sources/droidtop-agent-f95-adapter/releases/download/build-3/droidtop-agent-f95-adapter-linux-x86_64",
+          "sha256": "6c68f1ef51892a4cdef3a3861fe42d5cbca5a6648cf335c8381ece948bcec6d3"
         },
         "macos-aarch64": {
-          "url": "https://github.com/gamegrab-sources/droidtop-agent-f95-adapter/releases/download/build-1/droidtop-agent-f95-adapter-macos-arm64",
-          "sha256": "9bed4b61c8240be9291ff9e5858e153b790563ecf6e34d700943122544e23227"
+          "url": "https://github.com/gamegrab-sources/droidtop-agent-f95-adapter/releases/download/build-3/droidtop-agent-f95-adapter-macos-arm64",
+          "sha256": "75150f741de480e058c2d707a2bc04b39e1de225957d490845aad7f03ecaed43"
         }
       }
     }

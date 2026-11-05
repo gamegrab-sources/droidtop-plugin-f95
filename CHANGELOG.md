@@ -8,7 +8,8 @@ declared version moves with every change to the plugin's sources.
 - Your watched threads, and the versions you mark installed and finished, are kept the same as F95Checker's on your
   paired computers (Droidtop/tracker#794): the plugin publishes its watch list to droidtop's context sync after every
   change and takes in the merged copy when one arrives. droidtop merges the two, field by field; two different notes
-  are yours to choose. Needs F95Checker's adapter for droidtop-agent with snapshot support on the computer.
+  are yours to choose. Needs F95Checker's adapter for droidtop-agent with snapshot support on the computer: the plugin now offers the adapter's
+  build-3 (protocol 2), and droidtop-agent from 94693c271 or later.
 
 ## 0.7.3
 
