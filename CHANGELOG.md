@@ -3,6 +3,11 @@
 Every working build of `main` is a release (`v<version>-<CI run>`); the
 declared version moves with every change to the plugin's sources.
 
+## 0.8.1
+
+- The plugin offers F95Checker's adapter build-3, the one that syncs by copies (adapter protocol 2), instead of
+  build-1, which could not.
+
 ## 0.8.0
 
 - Your watched threads, and the versions you mark installed and finished, are kept the same as F95Checker's on your
