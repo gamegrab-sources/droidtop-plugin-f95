@@ -162,6 +162,16 @@ class Services {
     }
   }
 
+  /// Pushes the text a declared settings row shows (`settings.set_text`, docs/plugin-api.md 1.10, "Declared settings").
+  /// An older droidtop has no such op: ignored.
+  Future<void> setSettingText(String id, {String? value, String? sub}) async {
+    try {
+      await _data('settings', 'set_text', {'id': id, 'value': ?value, 'sub': ?sub});
+    } on HostError {
+      // Not this droidtop's op yet: the row shows its declared label alone.
+    }
+  }
+
   /// Opens [url] in droidtop's web view with the session; the download the page starts, or null.
   Future<Map<String, dynamic>?> openInSession(String url) async {
     final data = await _data('web.session', 'open_in_session', {'url': url});

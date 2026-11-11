@@ -104,6 +104,12 @@ void main() {
     expect(data(await plugin.handle({'point': 'library.updates', 'op': 'resolve', 'args': {'text': 'not a link'}})), isEmpty);
   });
 
+  test('the declared settings row runs the sync on ui.settings, and asks for a sign-in first', () async {
+    final reply = await pluginOn(FakeHost()).job('ui.settings', 'syncWatched', {});
+    expect(reply['ok'], isTrue, reason: '$reply');
+    expect((reply['values'] as Map)['message'], 'Sign in to F95zone first');
+  });
+
   test('a search is cut the way F95Checker cuts it', () {
     expect(sanitizeQuery("The Witch's Curse: Part 2 (v0.3)"), 'Witch Curse Part 2 v0 3');
     expect(sanitizeQuery('a an the'), '');

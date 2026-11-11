@@ -3,6 +3,13 @@
 Every working build of `main` is a release (`v<version>-<CI run>`); the
 declared version moves with every change to the plugin's sources.
 
+## 0.8.2
+
+- The settings are declared in the manifest (droidtop's declared settings, Droidtop/tracker#880): "Sync the watch list
+  now" while signed in, "Watch list" otherwise, so droidtop draws the page with no call and the Quick Menu panel has
+  its Settings row again (0.5.0's `settings.page` facets are retired in droidtop). After each sync the row's line
+  says how many threads are watched (`settings.set_text`).
+
 ## 0.8.1
 
 - The plugin offers F95Checker's adapter build-3, the one that syncs by copies (adapter protocol 2), instead of

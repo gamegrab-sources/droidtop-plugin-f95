@@ -97,6 +97,8 @@ class F95Plugin {
           final ok = await services.signIn(loginUrl, doneCookie: signedInCookie);
           if (ok) await syncWatched();
           return _done(ok ? 'Signed in to F95zone' : 'Not signed in');
+        // The settings page's "Sync the watch list now" (the manifest's declared settings); ui.facets is the older page's.
+        case 'ui.settings syncWatched':
         case 'ui.facets syncWatched':
           return _done(await syncWatched());
         case 'ui.facets setWatched':
@@ -581,6 +583,7 @@ class F95Plugin {
     context.mergeSite(site, _now());
     await publishContext(context);
     await services.writeJson(_contextFile, context.toJson());
+    await services.setSettingText('sync', sub: '${context.active.length} watched threads');
     return 'Watch list: ${context.active.length} threads${sent > 0 ? ', $sent changes sent to F95zone' : ''}';
   }
 }
