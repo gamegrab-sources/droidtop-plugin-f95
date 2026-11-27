@@ -3,6 +3,10 @@
 Every working build of `main` is a release (`v<version>-<CI run>`); the
 declared version moves with every change to the plugin's sources.
 
+## 0.8.4
+
+- Offer the F95Checker adapter build-6 with consistent SQLite snapshots and backups; pin all three published asset hashes.
+
 ## 0.8.3
 
 - Preserve saved watch lists when reads are incomplete, sign-in expires, browser checks intervene, or writes are not confirmed.

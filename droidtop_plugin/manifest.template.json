@@ -3,7 +3,7 @@
   "origin": "gamegrab",
   "label": "F95zone",
   "description": "Finds F95zone games, checks your linked games for new versions, and downloads them with your F95zone account.",
-  "version": "0.8.3",
+  "version": "0.8.4",
   "kind": "flutter_embed",
   "contractVersion": 3,
   "subscribedEvents": [
@@ -62,16 +62,16 @@
       "label": "F95Checker",
       "programs": {
         "windows-x86_64": {
-          "url": "https://github.com/gamegrab-sources/droidtop-agent-f95-adapter/releases/download/build-3/droidtop-agent-f95-adapter-windows-x86_64.exe",
-          "sha256": "000c32ddef6880c22ed98bef0b535767e54f025cfdf21b578eeca2d3795c4831"
+          "url": "https://github.com/gamegrab-sources/droidtop-agent-f95-adapter/releases/download/build-6/droidtop-agent-f95-adapter-windows-x86_64.exe",
+          "sha256": "be73e4c019df29cb30000d40e5a0405cf117a85dc91bf765f6505a055e9a9f22"
         },
         "linux-x86_64": {
-          "url": "https://github.com/gamegrab-sources/droidtop-agent-f95-adapter/releases/download/build-3/droidtop-agent-f95-adapter-linux-x86_64",
-          "sha256": "6c68f1ef51892a4cdef3a3861fe42d5cbca5a6648cf335c8381ece948bcec6d3"
+          "url": "https://github.com/gamegrab-sources/droidtop-agent-f95-adapter/releases/download/build-6/droidtop-agent-f95-adapter-linux-x86_64",
+          "sha256": "7b0022e9126a279840e13b61e57a7b4ec07795fb0e3c6366bb387002bf621c62"
         },
         "macos-aarch64": {
-          "url": "https://github.com/gamegrab-sources/droidtop-agent-f95-adapter/releases/download/build-3/droidtop-agent-f95-adapter-macos-arm64",
-          "sha256": "75150f741de480e058c2d707a2bc04b39e1de225957d490845aad7f03ecaed43"
+          "url": "https://github.com/gamegrab-sources/droidtop-agent-f95-adapter/releases/download/build-6/droidtop-agent-f95-adapter-macos-arm64",
+          "sha256": "2ad2b13caba6e9a356264a4bce8c3bdf7035ee580fcfbf45adb83cfa36b4b184"
         }
       }
     }
