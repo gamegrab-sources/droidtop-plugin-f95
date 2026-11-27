@@ -17,6 +17,12 @@ context is only what F95Checker itself keeps about threads.
 
 ## What the context is
 
+Site sync only merges a complete watched-thread snapshot. Failed or truncated
+pagination, a browser check, an expired session, and an unconfirmed watch/unwatch
+write leave the saved context and its sync timestamp unchanged. A complete empty
+list still represents removals. Partially accepted remote writes are reconciled
+by the next complete read; they do not mark unsent local changes as synced.
+
 One record per thread, keyed by the F95zone thread id. In F95Checker that is
 one row of the `games` table: its `id` is the thread id (`create_game`
 inserts `thread.id`). Rows with a negative id are F95Checker's custom games,

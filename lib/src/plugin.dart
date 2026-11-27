@@ -550,20 +550,25 @@ class F95Plugin {
     String? csrf;
     for (var page = 1; page <= 50; page++) {
       final answer = await services.http('https://f95zone.to/watched/threads?page=$page', session: true);
-      if (answer.status != 200) break;
-      csrf ??= csrfToken(answer.body);
+      _requireWatchPage(answer);
+      final token = csrfToken(answer.body);
+      if (token == null) throw HostError('FAILED', 'F95zone sent a page without its watch-list form. Try again later.');
+      csrf ??= token;
       if (page == 1) {
         final name = accountName(answer.body);
         if (name != null) await services.setAccount(name);
       }
       final found = watchedThreads(answer.body);
       site.addAll(found);
-      if (found.isEmpty || !answer.body.contains('pageNav-jump--next')) break;
+      if (!answer.body.contains('pageNav-jump--next')) break;
+      if (page == 50 || found.isEmpty) {
+        throw HostError('FAILED', 'F95zone did not send the complete watch list. Try again later.');
+      }
     }
     final pending = context.pendingForSite(site);
     var sent = 0;
     for (final change in pending.entries) {
-      if (csrf == null) break;
+      if (csrf == null) throw HostError('SIGN_IN_REQUIRED', 'Sign in to F95zone again before syncing changes.');
       final answer = await services.http(
         'https://f95zone.to/threads/${change.key}/watch',
         method: 'POST',
@@ -571,6 +576,16 @@ class F95Plugin {
         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
         body: '_xfToken=${Uri.encodeQueryComponent(csrf)}&_xfResponseType=json&_xfWithData=1${change.value ? '' : '&stop=1'}',
       );
+      _requireWatchPage(answer);
+      Object? result;
+      try {
+        result = jsonDecode(answer.body);
+      } on FormatException {
+        throw HostError('FAILED', 'F95zone did not confirm the watch-list change. Try again later.');
+      }
+      if (result is! Map || result['status'] != 'ok') {
+        throw HostError('FAILED', 'F95zone did not confirm the watch-list change. Try again later.');
+      }
       if (answer.status == 200) {
         sent++;
         if (change.value) {
@@ -586,6 +601,16 @@ class F95Plugin {
     await services.setSettingText('sync', sub: '${context.active.length} watched threads');
     return 'Watch list: ${context.active.length} threads${sent > 0 ? ', $sent changes sent to F95zone' : ''}';
   }
+}
+
+// An incomplete snapshot must never turn missing pages into remote removals.
+void _requireWatchPage(HttpAnswer answer) {
+  if (checkPage(answer.body)) throw HostError('BROWSER_CHECK_REQUIRED', 'F95zone showed a browser check.');
+  if (answer.status == 401 || guestPage(answer.body)) {
+    throw HostError('SIGN_IN_REQUIRED', 'Sign in to F95zone again before syncing the watch list.');
+  }
+  if (answer.status == 429) throw HostError('RATE_LIMITED', 'F95zone asked to slow down.');
+  if (answer.status != 200) throw HostError('FAILED', httpError('F95zone', answer.status));
 }
 
 /// The signed-in member's name from a XenForo page's navigation, or null.

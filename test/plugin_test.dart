@@ -559,6 +559,56 @@ void main() {
     expect(reply['facets'], isEmpty);
   });
 
+  for (final failure in [
+    (status: 503, body: 'unavailable', code: 'FAILED'),
+    (status: 200, body: '<title>Just a moment</title>', code: 'BROWSER_CHECK_REQUIRED'),
+    (status: 200, body: '<html data-logged-in="false">sign in</html>', code: 'SIGN_IN_REQUIRED'),
+    (status: 429, body: 'slow down', code: 'RATE_LIMITED'),
+  ]) {
+    test('an incomplete watch list preserves local state: ${failure.code}', () async {
+      final host = FakeHost()..signedIn = true;
+      final original = utf8.encode(jsonEncode(Context(siteSyncedAt: 1000, watched: {
+        42: WatchedThread(id: 42, name: 'Keep me', changedAt: 100),
+      }).toJson()));
+      host.files['context.json'] = original;
+      host.web['https://f95zone.to/watched/threads?page=1'] = [
+        200, '<html data-csrf="token"><a data-tp-primary="on" href="/threads/one.1/">One</a><a class="pageNav-jump--next">Next</a></html>',
+      ];
+      host.web['https://f95zone.to/watched/threads?page=2'] = [failure.status, failure.body];
+      await expectLater(pluginOn(host).syncWatched(), throwsA(isA<HostError>().having((e) => e.code, 'code', failure.code)));
+      expect(host.files['context.json'], original);
+      expect(host.published, isNull);
+      expect(host.requested.where((r) => r.startsWith('POST')), isEmpty);
+    });
+  }
+
+  for (final response in ['<html>unexpected page</html>', '{"status":"error"}']) {
+    test('an unconfirmed watch change stays pending: $response', () async {
+      final host = FakeHost()..signedIn = true;
+      final original = utf8.encode(jsonEncode(Context(siteSyncedAt: 1000, watched: {
+        42: WatchedThread(id: 42, name: 'Pending', changedAt: 2000),
+      }).toJson()));
+      host.files['context.json'] = original;
+      host.web['https://f95zone.to/watched/threads?page=1'] = [200, '<html data-csrf="token"></html>'];
+      host.web['https://f95zone.to/threads/42/watch'] = [200, response];
+      await expectLater(pluginOn(host).syncWatched(), throwsA(isA<HostError>().having((e) => e.code, 'code', 'FAILED')));
+      expect(host.files['context.json'], original);
+      expect(host.published, isNull);
+    });
+  }
+
+  test('a complete empty watch list still removes previously synced threads', () async {
+    final host = FakeHost()..signedIn = true;
+    host.files['context.json'] = utf8.encode(jsonEncode(Context(siteSyncedAt: 1000, watched: {
+      42: WatchedThread(id: 42, name: 'Removed on site', changedAt: 100),
+    }).toJson()));
+    host.web['https://f95zone.to/watched/threads?page=1'] = [200, '<html data-csrf="token"></html>'];
+    await pluginOn(host).syncWatched();
+    final saved = Context.fromJson(jsonDecode(utf8.decode(host.files['context.json']!)));
+    expect(saved.watched[42]!.watched, isFalse);
+    expect(saved.siteSyncedAt, 5000);
+  });
+
   test('after a sign-in through droidtop, the account name goes to droidtop and the watch list syncs', () async {
     final host = FakeHost()..signedIn = true;
     host.web['https://f95zone.to/watched/threads?page=1'] = [

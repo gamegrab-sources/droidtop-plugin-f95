@@ -3,6 +3,10 @@
 Every working build of `main` is a release (`v<version>-<CI run>`); the
 declared version moves with every change to the plugin's sources.
 
+## 0.8.3
+
+- Preserve saved watch lists when reads are incomplete, sign-in expires, browser checks intervene, or writes are not confirmed.
+
 ## 0.8.2
 
 - The settings are declared in the manifest (droidtop's declared settings, Droidtop/tracker#880): "Sync the watch list
