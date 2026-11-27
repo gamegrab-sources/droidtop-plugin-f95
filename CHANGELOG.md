@@ -3,9 +3,9 @@
 Every working build of `main` is a release (`v<version>-<CI run>`); the
 declared version moves with every change to the plugin's sources.
 
-## 0.8.4
+## 0.8.5
 
-- Offer the F95Checker adapter build-6 with consistent SQLite snapshots and backups; pin all three published asset hashes.
+- Offer the F95Checker adapter build-8 with consistent SQLite snapshots and private backups; pin all three published asset hashes.
 
 ## 0.8.3
 
