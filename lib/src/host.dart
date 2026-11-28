@@ -172,11 +172,12 @@ class Services {
     }
   }
 
-  /// Opens [url] in droidtop's web view with the session; the download the page starts, or null.
-  Future<Map<String, dynamic>?> openInSession(String url) async {
+  /// Opens [url] in droidtop's web view and reports the download or an explicit expired-link result.
+  Future<({Map<String, dynamic>? download, bool expired})> openInSession(String url) async {
     final data = await _data('web.session', 'open_in_session', {'url': url});
-    if (data['captured'] != true) return null;
-    return (data['download'] as Map?)?.cast<String, dynamic>();
+    final raw = data['download'];
+    final download = data['captured'] == true && raw is Map ? raw.cast<String, dynamic>() : null;
+    return (download: download, expired: data['expired'] == true);
   }
 
   // data.read answers in base64 inside a JSON string, which crosses droidtop's broker as UTF-16: 120 KiB came back

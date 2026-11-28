@@ -9,6 +9,7 @@ declared version moves with every change to the plugin's sources.
 - If the selected F95 download link is missing, try another mirror in the same section.
 - Keep the selected mirror if it moves within the list. Ask for a fresh choice if it cannot be identified.
 - Point back to the thread when a mirror opens without starting a download.
+- Tell the user when Droidtop reports that the mirror link expired.
 
 ## 0.8.5
 

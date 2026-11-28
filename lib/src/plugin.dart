@@ -389,9 +389,11 @@ class F95Plugin {
     if (link == null) {
       return {'ok': false, 'error': 'No download link from the selected section was found. Open the thread to choose a link.'};
     }
-    final download = await services.openInSession(link);
+    final opened = await services.openInSession(link);
+    final download = opened.download;
     if (download == null) {
-      return {'ok': false, 'error': 'No download started. Open the thread and choose a download link.'};
+      final reason = opened.expired ? 'That link expired.' : 'No download started.';
+      return {'ok': false, 'error': '$reason Open the thread and choose a download link.'};
     }
     return _done('Downloading ${detail.name} from ${usedMirror.label}', {
       'download': jsonEncode(download),
