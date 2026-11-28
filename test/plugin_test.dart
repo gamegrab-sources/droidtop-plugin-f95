@@ -139,6 +139,17 @@ void main() {
   };
   String fixtureMirror(int index) => mirrorLink(index, ThreadDetail.parse(93340, fullAnswer).mirrors[index]);
 
+  test('a mirror token survives reordering but a duplicate cannot take its place', () {
+    final first = Mirror('Windows', 'First host', 'https://f95zone.to/link/one');
+    final chosen = Mirror('Windows', 'Chosen host', 'https://f95zone.to/link/two');
+    final token = mirrorLink(1, chosen);
+    final reordered = ThreadDetail(id: 1, name: 'Game', mirrors: [chosen, first]);
+    expect(mirrorFor(reordered, token), 0);
+
+    final ambiguous = ThreadDetail(id: 1, name: 'Game', mirrors: [chosen, first, chosen]);
+    expect(mirrorFor(ambiguous, token), isNull);
+  });
+
   test("a thread's details are read from F95Checker's index, engine included", () {
     final d = ThreadDetail.parse(93340, fullAnswer);
     expect(d.name, 'Eternum');
