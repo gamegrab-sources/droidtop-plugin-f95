@@ -3,13 +3,15 @@
 Every working build of `main` is a release (`v<version>-<CI run>`); the
 declared version moves with every change to the plugin's sources.
 
+## 0.8.7
+
+- Keep the selected mirror if it moves within the list. Ask for a fresh choice if it cannot be identified.
+- Explain when a mirror link expires or starts no download, and point back to the thread.
+
 ## 0.8.6
 
 - Show the name of the linked thread alongside alternatives when choosing a metadata match in Droidtop.
 - If the selected F95 download link is missing, try another mirror in the same section.
-- Keep the selected mirror if it moves within the list. Ask for a fresh choice if it cannot be identified.
-- Point back to the thread when a mirror opens without starting a download.
-- Tell the user when Droidtop reports that the mirror link expired.
 
 ## 0.8.5
 
