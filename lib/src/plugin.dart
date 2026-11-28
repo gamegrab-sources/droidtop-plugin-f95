@@ -390,7 +390,9 @@ class F95Plugin {
       return {'ok': false, 'error': 'No download link from the selected section was found. Open the thread to choose a link.'};
     }
     final download = await services.openInSession(link);
-    if (download == null) return {'ok': false, 'error': 'No download was started'};
+    if (download == null) {
+      return {'ok': false, 'error': 'No download started. Open the thread and choose a download link.'};
+    }
     return _done('Downloading ${detail.name} from ${usedMirror.label}', {
       'download': jsonEncode(download),
       // droidtop pins the placed game to this engine's player (plugin-api 1.6, engine hint).
@@ -700,8 +702,25 @@ const _maxMirrorLinkLength = 2048;
 int? mirrorFor(ThreadDetail detail, String link) {
   final colon = link.indexOf(':');
   final index = colon > 0 ? int.tryParse(link.substring(0, colon)) : null;
-  if (index == null || index < 0 || index >= detail.mirrors.length) return null;
-  return mirrorLink(index, detail.mirrors[index]) == link ? index : null;
+  if (index == null || index < 0) return null;
+  if (index < detail.mirrors.length && mirrorLink(index, detail.mirrors[index]) == link) return index;
+
+  // The thread may have inserted or reordered mirrors since the picker opened.
+  // Use the original slot only to compare the token, then return the mirror's current slot.
+  int? current;
+  for (var slot = 0; slot < detail.mirrors.length; slot++) {
+    if (mirrorLink(index, detail.mirrors[slot]) != link) continue;
+    if (current != null) return null;
+    current = slot;
+  }
+  if (current != null) return current;
+
+  // Older cached pages used just the slot and label. Keep that choice only if the label still
+  // identifies one mirror on the whole thread and it has not moved.
+  if (index >= detail.mirrors.length) return null;
+  final legacyLabel = link.substring(colon + 1);
+  if (legacyLabel.isEmpty || detail.mirrors[index].label != legacyLabel) return null;
+  return detail.mirrors.where((mirror) => mirror.label == legacyLabel).length == 1 ? index : null;
 }
 
 /// Each mirror's https address on the thread page [html], by the mirror's place; a mirror the page has no link for is

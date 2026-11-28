@@ -7,7 +7,8 @@ declared version moves with every change to the plugin's sources.
 
 - Show the name of the linked thread alongside alternatives when choosing a metadata match in Droidtop.
 - If the selected F95 download link is missing, try another mirror in the same section.
-- Ask for a fresh choice when the thread changes the selected download link.
+- Keep the selected mirror if it moves within the list. Ask for a fresh choice if it cannot be identified.
+- Point back to the thread when a mirror opens without starting a download.
 
 ## 0.8.5
 
