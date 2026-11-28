@@ -3,6 +3,12 @@
 Every working build of `main` is a release (`v<version>-<CI run>`); the
 declared version moves with every change to the plugin's sources.
 
+## 0.8.6
+
+- Show the name of the linked thread alongside alternatives when choosing a metadata match in Droidtop.
+- If the selected F95 download link is missing, try another mirror in the same section.
+- Ask for a fresh choice when the thread changes the selected download link.
+
 ## 0.8.5
 
 - Offer the F95Checker adapter build-8 with consistent SQLite snapshots and private backups; pin all three published asset hashes.

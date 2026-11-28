@@ -73,7 +73,7 @@ class F95Plugin {
         case 'library.sources detail':
           return await _detail(args);
         case 'library.metadata match':
-          return await _metadataMatch(args);
+          return await _metadataMatch(args, choosing: (envelope['surface'] as Map?)?['place'] == 'pick');
         case 'library.metadata fetch':
           return await _metadataFetch(args);
         case 'ui.facets get':
@@ -344,37 +344,54 @@ class F95Plugin {
     return _acquire({
       'ref': {'id': '$id'},
       'values': {'mirror': '$index'},
-    });
+    }, selectedDetail: detail);
   }
 
   /// The person's Download: the thread page (signed in, links are for
   /// members) gives the chosen mirror's link, droidtop's web view opens it
   /// with the session, and the file the page starts is handed back as the
   /// acquire reply's download, which droidtop runs in its Downloads place.
-  Future<Map<String, dynamic>> _acquire(Map<String, dynamic> args) async {
+  Future<Map<String, dynamic>> _acquire(Map<String, dynamic> args, {ThreadDetail? selectedDetail}) async {
     final id = int.tryParse('${(args['ref'] as Map?)?['id'] ?? ''}');
     if (id == null) return {'ok': false, 'error': 'Missing thread'};
     if (!await services.signedIn()) {
       return {'ok': false, 'error': signInForLinks};
     }
-    final detail = await client.full(id);
+    final detail = selectedDetail ?? await client.full(id);
     if (detail == null) return {'ok': false, 'error': 'That thread is private, moved or deleted'};
     final values = (args['values'] as Map?)?.cast<String, dynamic>() ?? const {};
-    final index = int.tryParse('${values['mirror'] ?? ''}') ?? 0;
-    if (index < 0 || index >= detail.mirrors.length) return {'ok': false, 'error': 'Choose where to download from first'};
+    final choice = '${values['mirror'] ?? ''}';
+    final index = selectedDetail != null ? int.tryParse(choice) : mirrorFor(detail, choice);
+    if (index == null || index < 0 || index >= detail.mirrors.length) {
+      return {'ok': false, 'error': 'Choose a current download link from the thread page'};
+    }
     final mirror = detail.mirrors[index];
     final page = await services.http(detail.url, session: true);
     if (guestPage(page.body)) {
       await _endSession();
       return {'ok': false, 'error': signInForLinks};
     }
-    final link = resolveMirror(page.body, mirror.selector, label: mirror.label, section: mirror.section);
+    String? linkFor(Mirror candidate) =>
+        resolveMirror(page.body, candidate.selector, label: candidate.label, section: candidate.section);
+    var link = linkFor(mirror);
+    var usedMirror = mirror;
     if (link == null) {
-      return {'ok': false, 'error': 'The thread page has no ${mirror.label} link now; try another mirror'};
+      // A section can identify a platform or a different package. Only try mirrors in the selected section.
+      for (final candidate in detail.mirrors) {
+        if (identical(candidate, mirror) || candidate.section != mirror.section) continue;
+        link = linkFor(candidate);
+        if (link != null) {
+          usedMirror = candidate;
+          break;
+        }
+      }
+    }
+    if (link == null) {
+      return {'ok': false, 'error': 'No download link from the selected section was found. Open the thread to choose a link.'};
     }
     final download = await services.openInSession(link);
     if (download == null) return {'ok': false, 'error': 'No download was started'};
-    return _done('Downloading ${detail.name}', {
+    return _done('Downloading ${detail.name} from ${usedMirror.label}', {
       'download': jsonEncode(download),
       // droidtop pins the placed game to this engine's player (plugin-api 1.6, engine hint).
       'engine': ?detail.engineId,
@@ -383,13 +400,27 @@ class F95Plugin {
 
   // ----------------------------------------------------------- metadata (A3)
 
-  Future<Map<String, dynamic>> _metadataMatch(Map<String, dynamic> args) async {
-    // A game the person linked to its thread is that thread, no search needed.
+  Future<Map<String, dynamic>> _metadataMatch(Map<String, dynamic> args, {required bool choosing}) async {
     final linked = int.tryParse('${(args['sourceLinks'] as Map?)?[sourceKey] ?? ''}');
     if (linked != null) {
+      ThreadDetail? detail;
+      if (choosing) {
+        try {
+          detail = await _scrapeThread(linked);
+        } on HostError {
+          // Keep the existing link visible even when its name cannot be loaded.
+        } on FormatException {
+          // A malformed index entry also leaves the link intact.
+        }
+      }
+      // Droidtop asks separately without sourceLinks for alternatives.
       return Reply.ok({
         'candidates': [
-          {'ids': {'thread': '$linked'}, 'confidence': 1.0},
+          {
+            'ids': {'thread': '$linked'},
+            'confidence': 1.0,
+            if (detail != null && detail.name != 'Thread $linked') 'title': detail.name,
+          },
         ],
       });
     }
@@ -423,6 +454,7 @@ class F95Plugin {
     return Reply.ok({
       // The thread this game is, so droidtop links the game to it: the next scrape and the update checks find it.
       'sourceLinks': {sourceKey: '$id'},
+      if (detail.name != 'Thread $id') 'title': detail.name,
       // The thread's banner, the picture people know a game by: droidtop fetches it itself as the cover.
       if (detail.image != null) 'cover': detail.image,
       if (detail.description != null) 'description': detail.description,
@@ -657,15 +689,19 @@ Map<String, dynamic> _view(String title, List<Map<String, dynamic>> items, {Stri
 /// What a download needs from a person F95zone does not know as a member: download links are for members only.
 const signInForLinks = 'Sign in to F95zone to get download links';
 
-/// A record page's link for mirror [index]: its place and its label, so a thread that changed since is noticed.
-String mirrorLink(int index, Mirror mirror) => '$index:${mirror.label}';
+/// A download choice identifies its section, label and selector as well as its position.
+String mirrorLink(int index, Mirror mirror) =>
+    '$index:${jsonEncode([mirror.section, mirror.label, mirror.selector])}';
+
+// Droidtop drops record link tokens longer than this in its download contract.
+const _maxMirrorLinkLength = 2048;
 
 /// The mirror a record page's [link] names, if the thread still lists it at that place under that label.
 int? mirrorFor(ThreadDetail detail, String link) {
   final colon = link.indexOf(':');
   final index = colon > 0 ? int.tryParse(link.substring(0, colon)) : null;
   if (index == null || index < 0 || index >= detail.mirrors.length) return null;
-  return detail.mirrors[index].label == link.substring(colon + 1) ? index : null;
+  return mirrorLink(index, detail.mirrors[index]) == link ? index : null;
 }
 
 /// Each mirror's https address on the thread page [html], by the mirror's place; a mirror the page has no link for is
@@ -729,11 +765,13 @@ Map<String, dynamic> itemPageOf(ThreadDetail d, {Map<int, String> addresses = co
             'v': 1,
             'entries': [
               for (var i = 0; i < d.mirrors.length; i++)
-                {
+                if (mirrorLink(i, d.mirrors[i]) case final link
+                    when link.length <= _maxMirrorLinkLength || addresses.containsKey(i))
+                  {
                   'section': d.mirrors[i].section,
                   'host': d.mirrors[i].label,
                   'label': d.mirrors[i].label,
-                  'link': mirrorLink(i, d.mirrors[i]),
+                  if (link.length <= _maxMirrorLinkLength) 'link': link,
                   if (addresses[i] case final String url) ...{'url': url, 'kind': 'page'},
                   if (systemsOf(d.mirrors[i].section) case final systems when systems.isNotEmpty) 'systems': systems,
                 },
@@ -791,7 +829,9 @@ Map<String, dynamic> searchResult(ThreadSummary t) => {
 /// mirrors, and the one Download job.
 Map<String, dynamic> detailView(ThreadDetail d, {required bool signedIn}) {
   final options = [
-    for (var i = 0; i < d.mirrors.length; i++) {'value': '$i', 'label': '${d.mirrors[i].section} · ${d.mirrors[i].label}'},
+    for (var i = 0; i < d.mirrors.length; i++)
+      if (mirrorLink(i, d.mirrors[i]) case final link when link.length <= _maxMirrorLinkLength)
+        {'value': link, 'label': '${d.mirrors[i].section} · ${d.mirrors[i].label}'},
   ];
   return _view(d.name, [
     if (d.version != null) {'type': 'info', 'id': 'version', 'title': 'Version', 'value': d.version},
@@ -815,9 +855,14 @@ Map<String, dynamic> detailView(ThreadDetail d, {required bool signedIn}) {
         'action': {'kind': 'job', 'op': 'signIn', 'title': 'Sign in to F95zone'},
       }
     else if (options.isEmpty)
-      {'type': 'info', 'id': 'none', 'title': 'No downloads listed', 'subtitle': 'The thread lists no download mirrors.'}
+      {
+        'type': 'info',
+        'id': 'none',
+        'title': 'No download links available here',
+        'subtitle': 'Open the thread to see the links it lists.',
+      }
     else ...[
-      {'type': 'choice', 'id': 'mirror', 'title': 'Download from', 'options': options, 'value': '0'},
+      {'type': 'choice', 'id': 'mirror', 'title': 'Download from', 'options': options, 'value': options.first['value']},
       {
         'type': 'button',
         'id': 'acquire',

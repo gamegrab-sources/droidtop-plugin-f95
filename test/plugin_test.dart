@@ -137,6 +137,7 @@ void main() {
     'image_url': 'https://attachments.f95zone.to/2023/10/3018543_f95zone_banner.png',
     'INDEX_ERROR': '',
   };
+  String fixtureMirror(int index) => mirrorLink(index, ThreadDetail.parse(93340, fullAnswer).mirrors[index]);
 
   test("a thread's details are read from F95Checker's index, engine included", () {
     final d = ThreadDetail.parse(93340, fullAnswer);
@@ -351,7 +352,7 @@ void main() {
     host.web['https://api.f95checker.dev/full/93340?ts=0'] = [200, jsonEncode(fullAnswer)];
     final args = {
       'ref': {'id': '93340'},
-      'values': {'mirror': '0'},
+      'values': {'mirror': fixtureMirror(0)},
     };
     expect((await plugin.job('library.sources', 'acquire', args))['ok'], isFalse);
     host.signedIn = true;
@@ -378,13 +379,13 @@ void main() {
     expect(meta['votes'], 310);
     expect(meta['updated'], 1700000000000);
     final entries = itemFacet(reply, 'dl')['entries'] as List;
-    expect(entries.map((d) => (d as Map)['link']), ['0:AKIRABOX', '1:DATANODES']);
+    expect(entries.map((d) => (d as Map)['link']), [fixtureMirror(0), fixtureMirror(1)]);
     expect(entries.first, containsPair('section', 'Win/Linux'));
 
     host.signedIn = true;
     host.web['https://f95zone.to/threads/93340/'] = [200, '<a href="https://datanodes.to/f/2">DATANODES</a>'];
     host.captured = {'url': 'https://dl.datanodes.to/2', 'fileName': 'Eternum-0.9.6-pc.zip', 'session': 'w-2'};
-    final result = await plugin.job('library.updates', 'download', {'source': 'f95zone', 'id': '93340', 'link': '1:DATANODES', 'version': '0.9.5'});
+    final result = await plugin.job('library.updates', 'download', {'source': 'f95zone', 'id': '93340', 'link': fixtureMirror(1), 'version': '0.9.5'});
     expect(result['ok'], isTrue);
     expect(jsonDecode((result['values'] as Map)['download'] as String), host.captured);
     final moved = await plugin.job('library.updates', 'download', {'source': 'f95zone', 'id': '93340', 'link': '1:MEGA'});
@@ -427,10 +428,10 @@ void main() {
     expect(host.signedIn, isFalse, reason: 'the dead session is cleared, so droidtop shows the account signed out');
 
     host.signedIn = true;
-    final result = await plugin.job('library.updates', 'download', {'source': 'f95zone', 'id': '93340', 'link': '1:DATANODES'});
+    final result = await plugin.job('library.updates', 'download', {'source': 'f95zone', 'id': '93340', 'link': fixtureMirror(1)});
     expect(result, {'ok': false, 'error': signInForLinks});
     expect(host.signedIn, isFalse);
-    final signedOut = await plugin.job('library.updates', 'download', {'source': 'f95zone', 'id': '93340', 'link': '1:DATANODES'});
+    final signedOut = await plugin.job('library.updates', 'download', {'source': 'f95zone', 'id': '93340', 'link': fixtureMirror(1)});
     expect(signedOut['error'], signInForLinks, reason: 'never "no link now" for a guest');
   });
 
@@ -444,7 +445,7 @@ void main() {
     final downloads = itemFacet(reply, 'dl')['entries'] as List;
     expect((downloads[1] as Map)['url'], 'https://datanodes.to/f/2');
     expect((downloads[0] as Map).containsKey('url'), isFalse, reason: 'the page has no AKIRABOX link: that mirror stays a token');
-    expect((downloads[0] as Map)['link'], '0:AKIRABOX');
+    expect((downloads[0] as Map)['link'], fixtureMirror(0));
   });
 
   test('a game linked to its thread is that thread for the scraper, no search', () async {
